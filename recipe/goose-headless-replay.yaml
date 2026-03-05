@@ -1,0 +1,38 @@
+title: Goose Headless PR Replay
+version: 1.0.0
+description: |
+  Replay a merged pull request from a GitHub issue description.
+  Measures file-level navigation accuracy (file precision, recall, Jaccard).
+
+parameters:
+  - key: issue_body
+    input_type: string
+    requirement: required
+    description: "The GitHub issue body text to implement"
+
+prompt: |
+  {{ issue_body }}
+
+settings:
+  provider: gcp_vertex_ai
+  model: claude-sonnet-4-6@default
+  temperature: 0.3
+
+extensions:
+  - type: builtin
+    name: developer
+
+instructions: |
+  You are given a GitHub issue description. Implement the changes described in
+  the repository you are working in.
+
+  Rules:
+  - Work only from the issue text provided in the prompt.
+  - Do not look at git log, PR history, or any other context beyond the current
+    codebase state and the issue description.
+  - Do not run the test suite unless it is necessary to verify your change compiles.
+  - Do not modify CI configuration, dependency files, or unrelated files.
+  - Make the minimal set of file changes required to address the issue.
+  - Do not add comments explaining what you changed.
+
+  When you are done, stop. Do not summarize your changes.

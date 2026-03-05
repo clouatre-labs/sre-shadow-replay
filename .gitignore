@@ -1,0 +1,12 @@
+# Goose runtime output (large, machine-generated; preserved locally)
+experiments/replays/*/run-*/goose-stdout.txt
+experiments/replays/*/run-*/goose-stderr.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# macOS
+.DS_Store
