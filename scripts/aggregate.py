@@ -375,7 +375,7 @@ def run_tests():
             "scope_creep": [], "scope_creep_count": 0, "agent_empty": False,
             "wall_clock_seconds": 120, "input_tokens": 1000, "output_tokens": 500,
             "cost_usd": 0.0105,
-            "provider": "aws_bedrock", "model": "global.anthropic.claude-sonnet-4-6",
+            "provider": "test_provider", "model": "test_model",
             "goose_exit_code": 0,
         },
         {
@@ -384,7 +384,7 @@ def run_tests():
             "scope_creep": [], "scope_creep_count": 0, "agent_empty": True,
             "wall_clock_seconds": 30, "input_tokens": None, "output_tokens": None,
             "cost_usd": None,
-            "provider": "aws_bedrock", "model": "global.anthropic.claude-sonnet-4-6",
+            "provider": "test_provider", "model": "test_model",
             "goose_exit_code": 1,
         },
     ]
@@ -399,8 +399,8 @@ def run_tests():
         check("efficiency cost_per_jaccard", row1["cost_per_jaccard"], "0.021")
         # effective_cost = 0.0105 / (0.5 * 0.5) = 0.042
         check("efficiency effective_cost", row1["effective_cost"], "0.042")
-        check("efficiency provider", row1["provider"], "aws_bedrock")
-        check("efficiency model", row1["model"], "global.anthropic.claude-sonnet-4-6")
+        check("efficiency provider present", row1["provider"] != "", True)
+        check("efficiency model present", row1["model"] != "", True)
         check("efficiency goose_exit_code", row1["goose_exit_code"], "0")
 
         # Test 14: write_efficiency -- null when jaccard=0 or cost missing

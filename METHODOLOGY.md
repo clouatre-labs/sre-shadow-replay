@@ -76,6 +76,26 @@ The `developer` extension provides the agent with file read, file write, and she
 
 ---
 
+## Configuration
+
+Experiment parameters are defined in `params.json` at the repository root:
+
+```json
+{
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6",
+  "pricing_input_per_mtok_usd": 3.00,
+  "pricing_output_per_mtok_usd": 15.00,
+  "replay_timeout_seconds": 600
+}
+```
+
+This file serves as the single source of truth for provider, model, pricing, and timeout configuration. All scripts (`replay.sh`, `score.py`, `aggregate.py`) read from `params.json` at runtime. To reproduce this experiment with a different model or provider, edit `params.json` and rerun. Following the [DVC parameter file convention](https://dvc.org/doc/command-reference/params), which supports YAML, JSON, TOML, and Python formats; we use JSON for zero-dependency parsing with Python's standard library.
+
+The recipe file (`recipe/goose-headless-replay.yaml`) duplicates the provider and model settings for use with `goose run --recipe`. Scripts read `params.json` directly rather than parsing the recipe YAML.
+
+---
+
 ## Replay Procedure
 
 For each PR and each run:

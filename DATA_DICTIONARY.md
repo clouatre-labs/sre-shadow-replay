@@ -4,6 +4,28 @@ Schemas for all data files produced by this experiment.
 
 ---
 
+---
+
+## `params.json`
+
+Experiment configuration. Single source of truth for provider, model, and pricing.
+
+| Field | Type | Description |
+|---|---|---|
+| `provider` | string | LLM provider identifier (e.g., `aws_bedrock`) |
+| `model` | string | Model identifier (e.g., `global.anthropic.claude-sonnet-4-6`) |
+| `pricing_input_per_mtok_usd` | float | Input token price per million tokens (USD) |
+| `pricing_output_per_mtok_usd` | float | Output token price per million tokens (USD) |
+| `replay_timeout_seconds` | integer | Wall-clock timeout for each agent run in seconds |
+
+### Notes
+
+- All scripts read this file at runtime. To change the model or provider, edit this file.
+- The recipe file (`recipe/goose-headless-replay.yaml`) duplicates provider and model for `goose run --recipe` compatibility.
+- Pricing is used by `score.py` to compute `cost_usd` in `metrics.json`.
+
+---
+
 ## `experiments/curated-prs.csv`
 
 One row per curated pull request. Headers-only until experiment execution.

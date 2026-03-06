@@ -14,6 +14,9 @@ prompt: |
   {{ issue_body }}
 
 settings:
+  # Provider and model are also specified in params.json (single source of truth
+  # for scripts). The recipe settings are used by goose directly when invoked
+  # with --recipe. replay.sh reads from params.json instead.
   provider: aws_bedrock
   model: global.anthropic.claude-sonnet-4-6
   temperature: 0.3

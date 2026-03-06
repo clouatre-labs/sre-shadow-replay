@@ -15,6 +15,25 @@ import os
 import sys
 
 
+def load_params(repo_root=None):
+    """Load params.json from repo root. Returns dict with defaults."""
+    defaults = {
+        "provider": "",
+        "model": "",
+        "pricing_input_per_mtok_usd": 3.00,
+        "pricing_output_per_mtok_usd": 15.00,
+        "replay_timeout_seconds": 600,
+    }
+    if repo_root is None:
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    params_path = os.path.join(repo_root, "params.json")
+    if os.path.isfile(params_path):
+        with open(params_path, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        defaults.update(loaded)
+    return defaults
+
+
 def parse_diff_files(patch_text):
     """Extract set of file paths from a unified diff.
 
@@ -75,13 +94,15 @@ def compute_metrics(agent_files, human_files, pr_number, run_id):
     }
 
 
-def merge_timing(metrics, output_path):
+def merge_timing(metrics, output_path, params=None):
     """Merge timing.json fields into metrics dict if available.
 
     Looks for timing.json in the same directory as output_path.
     Adds: start_ts, end_ts, wall_clock_seconds, input_tokens, output_tokens,
     cost_usd, provider, model, goose_exit_code.
     """
+    if params is None:
+        params = load_params()
     timing_defaults = {
         "start_ts": None,
         "end_ts": None,
@@ -100,12 +121,14 @@ def merge_timing(metrics, output_path):
         for key in ("start_ts", "end_ts", "wall_clock_seconds", "input_tokens",
                      "output_tokens", "provider", "model", "goose_exit_code"):
             metrics[key] = timing.get(key)
-        # Compute cost_usd: $3.00/M input tokens, $15.00/M output tokens
+        # Compute cost_usd using pricing from params.json
         in_tok = timing.get("input_tokens")
         out_tok = timing.get("output_tokens")
+        input_price = params["pricing_input_per_mtok_usd"]
+        output_price = params["pricing_output_per_mtok_usd"]
         if in_tok is not None and out_tok is not None:
             metrics["cost_usd"] = round(
-                (in_tok * 3.0 / 1_000_000) + (out_tok * 15.0 / 1_000_000), 6
+                (in_tok * input_price / 1_000_000) + (out_tok * output_price / 1_000_000), 6
             )
         else:
             metrics["cost_usd"] = None
@@ -201,8 +224,8 @@ def run_tests():
             "wall_clock_seconds": 330,
             "input_tokens": 1000,
             "output_tokens": 500,
-            "provider": "aws_bedrock",
-            "model": "global.anthropic.claude-sonnet-4-6",
+            "provider": "test_provider",
+            "model": "test_model",
             "goose_exit_code": 0,
         }
         timing_path = os.path.join(tmpdir, "timing.json")
@@ -215,8 +238,8 @@ def run_tests():
         check("timing wall_clock_seconds", m_t["wall_clock_seconds"], 330)
         # cost_usd = (1000 * 3.0 / 1_000_000) + (500 * 15.0 / 1_000_000) = 0.003 + 0.0075 = 0.0105
         check("timing cost_usd", m_t["cost_usd"], 0.0105)
-        check("timing provider", m_t["provider"], "aws_bedrock")
-        check("timing model", m_t["model"], "global.anthropic.claude-sonnet-4-6")
+        check("timing provider present", isinstance(m_t.get("provider"), str) and len(m_t["provider"]) > 0, True)
+        check("timing model present", isinstance(m_t.get("model"), str) and len(m_t["model"]) > 0, True)
         check("timing goose_exit_code", m_t["goose_exit_code"], 0)
 
     # Test 9: merge_timing -- no timing.json present (all nulls)

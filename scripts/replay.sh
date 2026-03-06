@@ -200,36 +200,26 @@ except Exception as e:
         fi
     fi
 
-    # Determine provider and model from recipe if available (fall back to env defaults)
+    # Determine provider and model from params.json (single source of truth)
     GOOSE_PROVIDER_ARG=""
     GOOSE_MODEL_ARG=""
     R_PROVIDER=""
     R_MODEL=""
-    if [[ -f "$GOOSE_RECIPE" ]]; then
-        R_PROVIDER=$(python3 -c "
-import re
-with open('$GOOSE_RECIPE') as f:
-    content = f.read()
-m = re.search(r'provider:\s*(\S+)', content)
-print(m.group(1) if m else '')
-" 2>/dev/null)
-        R_MODEL=$(python3 -c "
-import re
-with open('$GOOSE_RECIPE') as f:
-    content = f.read()
-m = re.search(r'model:\s*(\S+)', content)
-print(m.group(1) if m else '')
-" 2>/dev/null)
-        [[ -n "$R_PROVIDER" ]] && GOOSE_PROVIDER_ARG="--provider $R_PROVIDER"
-        [[ -n "$R_MODEL" ]] && GOOSE_MODEL_ARG="--model $R_MODEL"
+    PARAMS_JSON="$REPO_ROOT/params.json"
+    if [[ -f "$PARAMS_JSON" ]]; then
+        R_PROVIDER=$(python3 -c "import json; print(json.load(open('$PARAMS_JSON'))['provider'])" 2>/dev/null)
+        R_MODEL=$(python3 -c "import json; print(json.load(open('$PARAMS_JSON'))['model'])" 2>/dev/null)
     fi
+    [[ -n "$R_PROVIDER" ]] && GOOSE_PROVIDER_ARG="--provider $R_PROVIDER"
+    [[ -n "$R_MODEL" ]] && GOOSE_MODEL_ARG="--model $R_MODEL"
+    REPLAY_TIMEOUT=$(python3 -c "import json; print(json.load(open('$PARAMS_JSON')).get('replay_timeout_seconds', 600))" 2>/dev/null || echo "600")
 
     GOOSE_START_TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     GOOSE_START_EPOCH="$(date -u +%s)"
 
     set +e
     # shellcheck disable=SC2086
-    timeout 600 goose run \
+    timeout $REPLAY_TIMEOUT goose run \
         --instructions "$ISSUE_FILE" \
         --system "$SYSTEM_PROMPT" \
         --with-builtin developer \
