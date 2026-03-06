@@ -201,8 +201,8 @@ def run_tests():
             "wall_clock_seconds": 330,
             "input_tokens": 1000,
             "output_tokens": 500,
-            "provider": "gcp_vertex_ai",
-            "model": "claude-sonnet-4-6@default",
+            "provider": "aws_bedrock",
+            "model": "global.anthropic.claude-sonnet-4-6",
             "goose_exit_code": 0,
         }
         timing_path = os.path.join(tmpdir, "timing.json")
@@ -215,8 +215,8 @@ def run_tests():
         check("timing wall_clock_seconds", m_t["wall_clock_seconds"], 330)
         # cost_usd = (1000 * 3.0 / 1_000_000) + (500 * 15.0 / 1_000_000) = 0.003 + 0.0075 = 0.0105
         check("timing cost_usd", m_t["cost_usd"], 0.0105)
-        check("timing provider", m_t["provider"], "gcp_vertex_ai")
-        check("timing model", m_t["model"], "claude-sonnet-4-6@default")
+        check("timing provider", m_t["provider"], "aws_bedrock")
+        check("timing model", m_t["model"], "global.anthropic.claude-sonnet-4-6")
         check("timing goose_exit_code", m_t["goose_exit_code"], 0)
 
     # Test 9: merge_timing -- no timing.json present (all nulls)

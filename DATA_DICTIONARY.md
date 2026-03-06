@@ -72,8 +72,8 @@ One file per replay run. Produced by `scripts/score.py`.
 | `input_tokens` | integer or null | Input token count from goose sessions.db; null if unavailable |
 | `output_tokens` | integer or null | Output token count from goose sessions.db; null if unavailable |
 | `cost_usd` | float or null | Computed API cost: `(input_tokens * 3.0 + output_tokens * 15.0) / 1_000_000`; null if tokens unavailable |
-| `provider` | string or null | LLM provider identifier (e.g., `gcp_vertex_ai`); from timing.json |
-| `model` | string or null | Model identifier (e.g., `claude-sonnet-4-6@default`); from timing.json |
+| `provider` | string or null | LLM provider identifier (e.g., `aws_bedrock`); from timing.json |
+| `model` | string or null | Model identifier (e.g., `global.anthropic.claude-sonnet-4-6`); from timing.json |
 | `goose_exit_code` | integer or null | Agent process exit code (0 = success); from timing.json |
 
 ---
@@ -89,8 +89,8 @@ Timing and token data captured by `scripts/replay.sh` around the goose agent inv
   "wall_clock_seconds": 330,
   "input_tokens": 12500,
   "output_tokens": 3200,
-  "provider": "gcp_vertex_ai",
-  "model": "claude-sonnet-4-6@default",
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6",
   "goose_exit_code": 0
 }
 ```
@@ -211,8 +211,8 @@ One row per run (not per PR). Produced by `scripts/aggregate.py`. Reports per-ru
 |---|---|---|
 | `pr_number` | integer | PR number this run targets |
 | `run_id` | string | Run identifier (`run-1`, `run-2`, `run-3`) |
-| `provider` | string or empty | LLM provider identifier (e.g., `gcp_vertex_ai`) |
-| `model` | string or empty | Model identifier (e.g., `claude-sonnet-4-6@default`) |
+| `provider` | string or empty | LLM provider identifier (e.g., `aws_bedrock`) |
+| `model` | string or empty | Model identifier (e.g., `global.anthropic.claude-sonnet-4-6`) |
 | `wall_clock_seconds` | integer or empty | Elapsed wall-clock seconds for the agent run; empty if timing.json absent |
 | `input_tokens` | integer or empty | Input token count; empty if unavailable |
 | `output_tokens` | integer or empty | Output token count; empty if unavailable |
@@ -226,4 +226,4 @@ One row per run (not per PR). Produced by `scripts/aggregate.py`. Reports per-ru
 
 - `cost_per_jaccard` is undefined (empty) when `jaccard = 0` to avoid division by zero. This includes runs where the agent produced no diff.
 - `effective_cost` extends `cost_per_jaccard` by incorporating reliability (completion rate) in the denominator, following the `effective_cost_per_qp` pattern from scout-bench. Lower is better.
-- Pricing basis: Claude Sonnet 4.6 on GCP Vertex AI at $3.00/M input tokens, $15.00/M output tokens (as of March 2026).
+- Pricing basis: Claude Sonnet 4.6 on Amazon Bedrock at $3.00/M input tokens, $15.00/M output tokens (as of March 2026).

@@ -14,8 +14,8 @@ prompt: |
   {{ issue_body }}
 
 settings:
-  provider: gcp_vertex_ai
-  model: claude-sonnet-4-6@default
+  provider: aws_bedrock
+  model: global.anthropic.claude-sonnet-4-6
   temperature: 0.3
 
 extensions:

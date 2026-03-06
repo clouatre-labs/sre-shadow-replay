@@ -66,10 +66,10 @@ Target mix within the curated set:
 
 The agent runs via Goose in headless (non-interactive) mode with the following configuration, pinned in `recipe/goose-headless-replay.yaml`:
 
-- **Model**: Claude Sonnet 4.6 (`claude-sonnet-4-6@default`)
-- **Provider**: GCP Vertex AI
+- **Model**: Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`)
+- **Provider**: Amazon Bedrock (cross-region inference)
 - **Extensions**: `developer` only (file read/write, shell execution)
-- **Temperature**: 0.3 (reduced for determinism; note: temperature 0 is not available on Vertex AI)
+- **Temperature**: 0.3 (reduced for determinism)
 - **System prompt**: instructs the agent to work only from the issue text and current codebase state
 
 The `developer` extension provides the agent with file read, file write, and shell execution capabilities. No `github`, `web`, or `search` extensions are loaded. This prevents the agent from accessing PR history, review comments, or linked issues via the GitHub API.
@@ -206,7 +206,7 @@ After each run, `replay.sh` queries the goose sessions database (`~/.local/share
 cost_usd = (input_tokens * 3.0 + output_tokens * 15.0) / 1_000_000
 ```
 
-Pricing basis: Claude Sonnet 4.6 on GCP Vertex AI at $3.00 per million input tokens and $15.00 per million output tokens (as of March 2026).
+Pricing basis: Claude Sonnet 4.6 on Amazon Bedrock at $3.00 per million input tokens and $15.00 per million output tokens (as of March 2026).
 
 If `timing.json` is absent or token counts are null, `cost_usd` is recorded as null.
 
@@ -230,7 +230,7 @@ Lower is better. This metric is undefined (empty) when `jaccard = 0` (division b
 
 2. **PR body as issue proxy**: sqlglot does not consistently link PRs to GitHub issues. The PR body is used as the issue body proxy. PR bodies written by the same author whose changes we are measuring may contain implicit context (e.g., "I changed X to fix Y") that a separate issue author would not include.
 
-3. **Temperature floor**: GCP Vertex AI does not support temperature 0. Temperature 0.3 produces near-deterministic but not fully deterministic results. Three runs mitigate this.
+3. **Temperature floor**: Temperature 0.3 produces near-deterministic but not fully deterministic results. Three runs mitigate this.
 
 4. **Token data availability**: The goose sessions database (`sessions.db`) token columns (`input_tokens`, `output_tokens`) are frequently NULL. This occurs when sessions complete but the provider does not return token usage in a format goose records. When token data is unavailable, `cost_usd` and `cost_per_jaccard` will be null for those runs.
 
@@ -244,15 +244,15 @@ Lower is better. This metric is undefined (empty) when `jaccard = 0` (division b
 
 | Component | Version |
 |---|---|
-| Goose | 1.25.0 |
-| Agent model | Claude Sonnet 4.6 (`claude-sonnet-4-6@default`) |
-| Provider | GCP Vertex AI |
-| Python | 3.10+ (scripts) |
-| GitHub CLI | latest at time of execution |
+| Goose | 1.27.0 |
+| Agent model | Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`) |
+| Provider | Amazon Bedrock |
+| Python | 3.14.3 |
+| GitHub CLI | 2.87.3 |
 | Target repository | tobymao/sqlglot (HEAD at time of curation) |
 
 ## Pricing Reference
 
 | Model | Input (per M tokens) | Output (per M tokens) | Provider | As of |
 |---|---|---|---|---|
-| Claude Sonnet 4.6 | $3.00 | $15.00 | GCP Vertex AI | March 2026 |
+| Claude Sonnet 4.6 | $3.00 | $15.00 | Amazon Bedrock | March 2026 |

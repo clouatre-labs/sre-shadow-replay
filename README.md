@@ -157,9 +157,9 @@ The agent configuration is pinned in `recipe/goose-headless-replay.yaml`. The ag
 
 | Component | Version |
 |---|---|
-| Goose | 1.25.0 |
-| Agent model | Claude Sonnet 4.6 (`claude-sonnet-4-6@default`) |
-| Provider | GCP Vertex AI |
+| Goose | 1.27.0 |
+| Agent model | Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`) |
+| Provider | Amazon Bedrock |
 | Target repository | tobymao/sqlglot |
 
 ---
