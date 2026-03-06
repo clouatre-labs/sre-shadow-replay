@@ -62,6 +62,14 @@ Target mix within the curated set:
 
 ---
 
+## Sample Size
+
+This experiment targets 30 PRs with 3 runs each (90 total replays). This is a **pilot study** producing descriptive statistics (mean Jaccard per tier, scope creep rates, consistency variance). We do not claim statistical significance for tier-level comparisons; with 5-10 PRs per tier and 3 runs each, the study is underpowered for hypothesis testing. The purpose is to characterize agent file-navigation accuracy and identify failure patterns, not to detect small effect sizes between tiers.
+
+The sample size is driven by resource constraints: at ~$0.15 per replay (Claude Sonnet 4.6 on Bedrock), 90 runs cost approximately $13.50. A larger study (500+ instances, as in SWE-bench) would strengthen tier comparisons but exceeds the scope and budget of this companion experiment.
+
+---
+
 ## Agent Configuration
 
 The agent runs via Goose in headless (non-interactive) mode with the following configuration, pinned in `recipe/goose-headless-replay.yaml`:
@@ -204,7 +212,7 @@ Each PR-run pair receives a binary flag (0/1) on each dimension in `failure-clas
 
 Each PR in the curated set is replayed 3 times (`run-1`, `run-2`, `run-3`) with identical configuration. Temperature 0.3 introduces controlled stochasticity to measure whether results are stable.
 
-Cross-run consistency per PR is reported as standard deviation of precision, recall, and Jaccard across the 3 runs. A PR is classified as **consistent** if `jaccard_std <= 0.1` across runs.
+Cross-run consistency per PR is reported as standard deviation of precision, recall, and Jaccard across the 3 runs. A PR is classified as **consistent** if `jaccard_std <= 0.1` across runs. This threshold is a pragmatic pilot value; the full distribution of `jaccard_std` will be reported, and the threshold revisited after observing the data.
 
 ---
 
@@ -276,3 +284,9 @@ Lower is better. This metric is undefined (empty) when `jaccard = 0` (division b
 | Model | Input (per M tokens) | Output (per M tokens) | Provider | As of |
 |---|---|---|---|---|
 | Claude Sonnet 4.6 | $3.00 | $15.00 | Amazon Bedrock | March 2026 |
+
+## References
+
+- Jimenez, C. E., Yang, J., Wettig, A., Yao, S., Peri, K., Press, O., and Narasimhan, K. "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?" (ICLR 2024) -- https://arxiv.org/abs/2310.06770
+- Rabanser, S., Theis, L., Shchur, O., Gunnemann, S., and Gal, Y. "Towards a Science of AI Agent Reliability" (2026) -- https://arxiv.org/abs/2602.16666
+- DVC, "params: Parameter dependencies" (2026) -- https://dvc.org/doc/command-reference/params (accessed March 2026)

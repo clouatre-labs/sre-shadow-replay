@@ -164,6 +164,17 @@ The agent configuration is pinned in `recipe/goose-headless-replay.yaml`. The ag
 
 ---
 
+## Data Availability
+
+All experimental data, protocols, scoring scripts, and analysis outputs are
+available in this repository under the Apache 2.0 license. Patch files
+(`agent.patch`, `human.patch`) are derived from
+[tobymao/sqlglot](https://github.com/tobymao/sqlglot) (MIT license);
+attribution is preserved in `curated-prs.csv`. Session logs (`session.jsonl`)
+contain AI-generated output with no independent copyright claim. Aggregate
+CSVs and metrics are original research data. No data has been excluded or
+selectively reported.
+
 ## Ethics Statement
 
 This research involves no human subjects. All experimental runs are automated
