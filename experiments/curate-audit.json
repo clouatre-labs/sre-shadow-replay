@@ -1,0 +1,690 @@
+{
+  "seed": 42,
+  "repo": "tobymao/sqlglot",
+  "total_fetched": 500,
+  "total_passed_filter": 30,
+  "pre_include": [
+    7200,
+    7209
+  ],
+  "pre_exclude": [
+    7210
+  ],
+  "deviation": "Co-author detection skipped: not pertinent to file-navigation study.",
+  "selected": {
+    "simple": [
+      6708,
+      7050,
+      7166,
+      6594,
+      6932,
+      6951,
+      6970,
+      7029,
+      6595,
+      7077
+    ],
+    "medium": [
+      7209,
+      7200,
+      6644,
+      6614,
+      6752,
+      7104,
+      6699,
+      6846,
+      7147,
+      7153
+    ],
+    "complex": [
+      7080,
+      6961,
+      6955,
+      6777,
+      6710,
+      7117,
+      6762,
+      6547,
+      6611,
+      6700
+    ]
+  },
+  "excluded": [
+    {
+      "pr_number": 7211,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7210,
+      "reason": "pre_exclude_leakage"
+    },
+    {
+      "pr_number": 7202,
+      "reason": "body_too_short_prescrub:84"
+    },
+    {
+      "pr_number": 7201,
+      "reason": "body_too_short_prescrub:24"
+    },
+    {
+      "pr_number": 7198,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7193,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7192,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7191,
+      "reason": "body_too_short_prescrub:13"
+    },
+    {
+      "pr_number": 7189,
+      "reason": "body_too_short_prescrub:59"
+    },
+    {
+      "pr_number": 7187,
+      "reason": "body_too_short_prescrub:11"
+    },
+    {
+      "pr_number": 7186,
+      "reason": "body_too_short_prescrub:64"
+    },
+    {
+      "pr_number": 7185,
+      "reason": "body_too_short_prescrub:11"
+    },
+    {
+      "pr_number": 7184,
+      "reason": "body_too_short_prescrub:11"
+    },
+    {
+      "pr_number": 7181,
+      "reason": "body_too_short_prescrub:12"
+    },
+    {
+      "pr_number": 7174,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7172,
+      "reason": "body_too_short_prescrub:122"
+    },
+    {
+      "pr_number": 7171,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7169,
+      "reason": "body_too_short_prescrub:119"
+    },
+    {
+      "pr_number": 7167,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7164,
+      "reason": "body_too_short_prescrub:167"
+    },
+    {
+      "pr_number": 7162,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7160,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7158,
+      "reason": "body_too_short_prescrub:112"
+    },
+    {
+      "pr_number": 7157,
+      "reason": "body_too_short_prescrub:135"
+    },
+    {
+      "pr_number": 7151,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7150,
+      "reason": "body_too_short_prescrub:72"
+    },
+    {
+      "pr_number": 7149,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7146,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7143,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7140,
+      "reason": "body_too_short_prescrub:177"
+    },
+    {
+      "pr_number": 7139,
+      "reason": "body_too_short_prescrub:104"
+    },
+    {
+      "pr_number": 7137,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7135,
+      "reason": "body_too_short_prescrub:153"
+    },
+    {
+      "pr_number": 7134,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7132,
+      "reason": "body_too_short_prescrub:155"
+    },
+    {
+      "pr_number": 7131,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7129,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7120,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7116,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7114,
+      "reason": "body_too_short_prescrub:140"
+    },
+    {
+      "pr_number": 7113,
+      "reason": "body_too_short_prescrub:137"
+    },
+    {
+      "pr_number": 7110,
+      "reason": "body_too_short_prescrub:63"
+    },
+    {
+      "pr_number": 7108,
+      "reason": "body_too_short_prescrub:129"
+    },
+    {
+      "pr_number": 7092,
+      "reason": "body_too_short_prescrub:90"
+    },
+    {
+      "pr_number": 7091,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7090,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7089,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7087,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7085,
+      "reason": "body_too_short_prescrub:136"
+    },
+    {
+      "pr_number": 7084,
+      "reason": "body_too_short_prescrub:161"
+    },
+    {
+      "pr_number": 7079,
+      "reason": "body_too_short_prescrub:173"
+    },
+    {
+      "pr_number": 7076,
+      "reason": "body_too_short_prescrub:107"
+    },
+    {
+      "pr_number": 7071,
+      "reason": "body_too_short_prescrub:175"
+    },
+    {
+      "pr_number": 7070,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7068,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7066,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7051,
+      "reason": "body_too_short_prescrub:28"
+    },
+    {
+      "pr_number": 7048,
+      "reason": "body_too_short_prescrub:197"
+    },
+    {
+      "pr_number": 7047,
+      "reason": "body_too_short_prescrub:33"
+    },
+    {
+      "pr_number": 7045,
+      "reason": "body_too_short_postscrub:0"
+    },
+    {
+      "pr_number": 7042,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7038,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 7036,
+      "reason": "body_too_short_prescrub:12"
+    },
+    {
+      "pr_number": 7032,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 7025,
+      "reason": "body_too_short_prescrub:19"
+    },
+    {
+      "pr_number": 7024,
+      "reason": "body_too_short_prescrub:171"
+    },
+    {
+      "pr_number": 6997,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 6994,
+      "reason": "body_too_short_prescrub:13"
+    },
+    {
+      "pr_number": 6987,
+      "reason": "body_too_short_prescrub:65"
+    },
+    {
+      "pr_number": 6986,
+      "reason": "body_too_short_prescrub:192"
+    },
+    {
+      "pr_number": 6980,
+      "reason": "body_too_short_prescrub:185"
+    },
+    {
+      "pr_number": 6976,
+      "reason": "body_too_short_prescrub:36"
+    },
+    {
+      "pr_number": 6973,
+      "reason": "body_too_short_prescrub:38"
+    },
+    {
+      "pr_number": 6972,
+      "reason": "body_too_short_prescrub:11"
+    },
+    {
+      "pr_number": 6968,
+      "reason": "body_too_short_prescrub:178"
+    },
+    {
+      "pr_number": 6967,
+      "reason": "body_too_short_prescrub:146"
+    },
+    {
+      "pr_number": 6960,
+      "reason": "body_too_short_prescrub:43"
+    },
+    {
+      "pr_number": 6958,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6946,
+      "reason": "body_too_short_prescrub:57"
+    },
+    {
+      "pr_number": 6945,
+      "reason": "body_too_short_prescrub:46"
+    },
+    {
+      "pr_number": 6940,
+      "reason": "body_too_short_prescrub:101"
+    },
+    {
+      "pr_number": 6928,
+      "reason": "body_too_short_prescrub:52"
+    },
+    {
+      "pr_number": 6923,
+      "reason": "files_out_of_range:17"
+    },
+    {
+      "pr_number": 6921,
+      "reason": "github_or_pyproject_only"
+    },
+    {
+      "pr_number": 6917,
+      "reason": "body_too_short_prescrub:52"
+    },
+    {
+      "pr_number": 6916,
+      "reason": "body_too_short_prescrub:11"
+    },
+    {
+      "pr_number": 6899,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 6884,
+      "reason": "body_too_short_prescrub:173"
+    },
+    {
+      "pr_number": 6880,
+      "reason": "body_too_short_prescrub:53"
+    },
+    {
+      "pr_number": 6877,
+      "reason": "body_too_short_prescrub:126"
+    },
+    {
+      "pr_number": 6875,
+      "reason": "body_too_short_prescrub:172"
+    },
+    {
+      "pr_number": 6869,
+      "reason": "body_too_short_prescrub:62"
+    },
+    {
+      "pr_number": 6858,
+      "reason": "body_too_short_prescrub:92"
+    },
+    {
+      "pr_number": 6857,
+      "reason": "body_too_short_prescrub:93"
+    },
+    {
+      "pr_number": 6856,
+      "reason": "body_too_short_prescrub:70"
+    },
+    {
+      "pr_number": 6847,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6842,
+      "reason": "body_too_short_prescrub:165"
+    },
+    {
+      "pr_number": 6839,
+      "reason": "body_too_short_prescrub:130"
+    },
+    {
+      "pr_number": 6820,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6793,
+      "reason": "body_too_short_prescrub:13"
+    },
+    {
+      "pr_number": 6791,
+      "reason": "body_too_short_prescrub:13"
+    },
+    {
+      "pr_number": 6776,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6775,
+      "reason": "body_too_short_prescrub:58"
+    },
+    {
+      "pr_number": 6771,
+      "reason": "body_too_short_prescrub:13"
+    },
+    {
+      "pr_number": 6763,
+      "reason": "body_too_short_prescrub:58"
+    },
+    {
+      "pr_number": 6749,
+      "reason": "body_too_short_prescrub:57"
+    },
+    {
+      "pr_number": 6742,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6741,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6740,
+      "reason": "body_too_short_prescrub:13"
+    },
+    {
+      "pr_number": 6735,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 6723,
+      "reason": "body_too_short_prescrub:54"
+    },
+    {
+      "pr_number": 6722,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6721,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 6716,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 6703,
+      "reason": "body_too_short_prescrub:61"
+    },
+    {
+      "pr_number": 6698,
+      "reason": "body_too_short_prescrub:44"
+    },
+    {
+      "pr_number": 6688,
+      "reason": "body_too_short_prescrub:165"
+    },
+    {
+      "pr_number": 6678,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6675,
+      "reason": "body_too_short_prescrub:135"
+    },
+    {
+      "pr_number": 6653,
+      "reason": "body_too_short_prescrub:107"
+    },
+    {
+      "pr_number": 6645,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 6641,
+      "reason": "body_too_short_prescrub:146"
+    },
+    {
+      "pr_number": 6631,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6630,
+      "reason": "body_too_short_prescrub:58"
+    },
+    {
+      "pr_number": 6627,
+      "reason": "body_too_short_prescrub:15"
+    },
+    {
+      "pr_number": 6610,
+      "reason": "body_too_short_prescrub:12"
+    },
+    {
+      "pr_number": 6606,
+      "reason": "github_or_pyproject_only"
+    },
+    {
+      "pr_number": 6604,
+      "reason": "body_too_short_prescrub:11"
+    },
+    {
+      "pr_number": 6599,
+      "reason": "body_too_short_prescrub:82"
+    },
+    {
+      "pr_number": 6598,
+      "reason": "github_or_pyproject_only"
+    },
+    {
+      "pr_number": 6597,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6592,
+      "reason": "body_too_short_prescrub:102"
+    },
+    {
+      "pr_number": 6591,
+      "reason": "body_too_short_prescrub:153"
+    },
+    {
+      "pr_number": 6590,
+      "reason": "body_too_short_prescrub:177"
+    },
+    {
+      "pr_number": 6588,
+      "reason": "body_too_short_prescrub:12"
+    },
+    {
+      "pr_number": 6585,
+      "reason": "body_too_short_prescrub:98"
+    },
+    {
+      "pr_number": 6584,
+      "reason": "body_too_short_postscrub:0"
+    },
+    {
+      "pr_number": 6582,
+      "reason": "github_or_pyproject_only"
+    },
+    {
+      "pr_number": 6577,
+      "reason": "body_too_short_prescrub:164"
+    },
+    {
+      "pr_number": 6573,
+      "reason": "body_too_short_prescrub:12"
+    },
+    {
+      "pr_number": 6572,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6569,
+      "reason": "body_too_short_prescrub:70"
+    },
+    {
+      "pr_number": 6563,
+      "reason": "body_too_short_prescrub:52"
+    },
+    {
+      "pr_number": 6556,
+      "reason": "body_too_short_prescrub:12"
+    },
+    {
+      "pr_number": 6550,
+      "reason": "body_too_short_prescrub:90"
+    },
+    {
+      "pr_number": 6546,
+      "reason": "type_excluded:other"
+    },
+    {
+      "pr_number": 6545,
+      "reason": "body_too_short_prescrub:183"
+    },
+    {
+      "pr_number": 6540,
+      "reason": "body_too_short_prescrub:50"
+    },
+    {
+      "pr_number": 6539,
+      "reason": "github_or_pyproject_only"
+    },
+    {
+      "pr_number": 6538,
+      "reason": "body_too_short_prescrub:83"
+    },
+    {
+      "pr_number": 6536,
+      "reason": "body_too_short_prescrub:0"
+    },
+    {
+      "pr_number": 6535,
+      "reason": "body_too_short_prescrub:52"
+    },
+    {
+      "pr_number": 6534,
+      "reason": "body_too_short_prescrub:7"
+    },
+    {
+      "pr_number": 6528,
+      "reason": "body_too_short_prescrub:52"
+    },
+    {
+      "pr_number": 6525,
+      "reason": "body_too_short_prescrub:170"
+    },
+    {
+      "pr_number": 6524,
+      "reason": "body_too_short_prescrub:170"
+    },
+    {
+      "pr_number": 6523,
+      "reason": "body_too_short_prescrub:172"
+    },
+    {
+      "pr_number": 6522,
+      "reason": "body_too_short_prescrub:172"
+    },
+    {
+      "pr_number": 6521,
+      "reason": "body_too_short_prescrub:170"
+    }
+  ]
+}
