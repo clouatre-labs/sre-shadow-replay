@@ -1,0 +1,114 @@
+diff --git a/sqlglot/dialects/duckdb.py b/sqlglot/dialects/duckdb.py
+index d404b3b2..af28239b 100644
+--- a/sqlglot/dialects/duckdb.py
++++ b/sqlglot/dialects/duckdb.py
+@@ -558,6 +558,35 @@ def _array_contains_sql(self: DuckDB.Generator, expression: exp.ArrayContains) -
+     return func
+ 
+ 
++def _array_overlaps_sql(self: DuckDB.Generator, expression: exp.ArrayOverlaps) -> str:
++    """
++    Translates Snowflake's NULL-safe ARRAYS_OVERLAP to DuckDB.
++
++    DuckDB's native && operator is not NULL-safe: [1,NULL,3] && [NULL,4,5] returns FALSE.
++    Snowflake returns TRUE when both arrays contain NULL (NULLs are treated as known values).
++
++    Generated SQL: (arr1 && arr2) OR (ARRAY_LENGTH(arr1) <> LIST_COUNT(arr1) AND ARRAY_LENGTH(arr2) <> LIST_COUNT(arr2))
++
++    ARRAY_LENGTH counts all elements (including NULLs); LIST_COUNT counts only non-NULLs.
++    When they differ, the array contains at least one NULL, matching Snowflake's NULL-safe semantics.
++    """
++    if not expression.args.get("nullsafe"):
++        return self.binary(expression, "&&")
++    arr1 = expression.this
++    arr2 = expression.expression
++    null_safe = self.sql(
++        exp.and_(
++            exp.NEQ(
++                this=exp.ArraySize(this=arr1.copy()), expression=exp.func("LIST_COUNT", arr1.copy())
++            ),
++            exp.NEQ(
++                this=exp.ArraySize(this=arr2.copy()), expression=exp.func("LIST_COUNT", arr2.copy())
++            ),
++        )
++    )
++    return f"({self.binary(expression, '&&')}) OR ({null_safe})"
++
++
+ def _build_sort_array_desc(args: t.List) -> exp.Expr:
+     return exp.SortArray(this=seq_get(args, 0), asc=exp.false())
+ 
+@@ -1914,6 +1943,7 @@ class DuckDB(Dialect):
+             ),
+             exp.ArrayConcat: array_concat_sql("LIST_CONCAT"),
+             exp.ArrayContains: _array_contains_sql,
++            exp.ArrayOverlaps: _array_overlaps_sql,
+             exp.ArrayFilter: rename_func("LIST_FILTER"),
+             exp.ArrayInsert: _array_insert_sql,
+             exp.ArrayPosition: lambda self, e: (
+diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py
+index 221f94eb..3e6e1456 100644
+--- a/sqlglot/dialects/snowflake.py
++++ b/sqlglot/dialects/snowflake.py
+@@ -880,6 +880,9 @@ class Snowflake(Dialect):
+             ),
+             "ARRAY_SORT": exp.SortArray.from_arg_list,
+             "ARRAY_FLATTEN": exp.Flatten.from_arg_list,
++            "ARRAYS_OVERLAP": lambda args: exp.ArrayOverlaps(
++                this=seq_get(args, 0), expression=seq_get(args, 1), nullsafe=True
++            ),
+             "BITAND": _build_bitwise(exp.BitwiseAnd, "BITAND"),
+             "BIT_AND": _build_bitwise(exp.BitwiseAnd, "BITAND"),
+             "BITNOT": lambda args: exp.BitwiseNot(this=seq_get(args, 0)),
+@@ -1695,6 +1698,7 @@ class Snowflake(Dialect):
+                 e.this,
+             ),
+             exp.ArrayIntersect: rename_func("ARRAY_INTERSECTION"),
++            exp.ArrayOverlaps: rename_func("ARRAYS_OVERLAP"),
+             exp.AtTimeZone: lambda self, e: self.func(
+                 "CONVERT_TIMEZONE", e.args.get("zone"), e.this
+             ),
+diff --git a/sqlglot/expressions/array.py b/sqlglot/expressions/array.py
+index 628b7794..a0468d28 100644
+--- a/sqlglot/expressions/array.py
++++ b/sqlglot/expressions/array.py
+@@ -126,7 +126,7 @@ class ArrayIntersect(Expression, Func):
+ 
+ 
+ class ArrayOverlaps(Expression, Binary, Func):
+-    pass
++    arg_types = {"this": True, "expression": True, "nullsafe": False}
+ 
+ 
+ class ArrayPosition(Expression, Binary, Func):
+diff --git a/tests/dialects/test_snowflake.py b/tests/dialects/test_snowflake.py
+index d7d891a4..03fdc404 100644
+--- a/tests/dialects/test_snowflake.py
++++ b/tests/dialects/test_snowflake.py
+@@ -1068,6 +1068,26 @@ class TestSnowflake(Validator):
+                 "bigquery": "select _u.foo[0].bar from unnest([struct([struct(1 as bar)] as foo)]) as _u",
+             },
+         )
++        self.validate_all(
++            "SELECT ARRAYS_OVERLAP(col1, col2)",
++            read={
++                "snowflake": "SELECT ARRAYS_OVERLAP(col1, col2)",
++            },
++            write={
++                "snowflake": "SELECT ARRAYS_OVERLAP(col1, col2)",
++                "duckdb": "SELECT (col1 && col2) OR (ARRAY_LENGTH(col1) <> LIST_COUNT(col1) AND ARRAY_LENGTH(col2) <> LIST_COUNT(col2))",
++            },
++        )
++        self.validate_all(
++            "SELECT ARRAYS_OVERLAP([1, NULL, 3], [NULL, 4, 5])",
++            read={
++                "snowflake": "SELECT ARRAYS_OVERLAP([1, NULL, 3], [NULL, 4, 5])",
++            },
++            write={
++                "snowflake": "SELECT ARRAYS_OVERLAP([1, NULL, 3], [NULL, 4, 5])",
++                "duckdb": "SELECT ([1, NULL, 3] && [NULL, 4, 5]) OR (ARRAY_LENGTH([1, NULL, 3]) <> LIST_COUNT([1, NULL, 3]) AND ARRAY_LENGTH([NULL, 4, 5]) <> LIST_COUNT([NULL, 4, 5]))",
++            },
++        )
+         self.validate_all(
+             "SELECT ARRAY_INTERSECTION([1, 2], [2, 3])",
+             write={

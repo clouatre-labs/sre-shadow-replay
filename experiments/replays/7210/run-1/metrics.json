@@ -1,0 +1,18 @@
+{
+  "pr_number": 7210,
+  "run_id": "run-1",
+  "agent_files": [],
+  "human_files": [
+    "sqlglot/dialects/databricks.py",
+    "tests/dialects/test_databricks.py",
+    "tests/dialects/test_tsql.py"
+  ],
+  "intersection": [],
+  "precision": null,
+  "recall": 0.0,
+  "jaccard": 0.0,
+  "scope_creep": [],
+  "scope_creep_count": 0,
+  "agent_empty": true,
+  "leakage_flag": true
+}

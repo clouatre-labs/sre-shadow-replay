@@ -1,0 +1,19 @@
+{
+  "pr_number": 7200,
+  "run_id": "run-1",
+  "agent_files": [],
+  "human_files": [
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/dialects/snowflake.py",
+    "sqlglot/expressions/array.py",
+    "tests/dialects/test_snowflake.py"
+  ],
+  "intersection": [],
+  "precision": null,
+  "recall": 0.0,
+  "jaccard": 0.0,
+  "scope_creep": [],
+  "scope_creep_count": 0,
+  "agent_empty": true,
+  "leakage_flag": false
+}

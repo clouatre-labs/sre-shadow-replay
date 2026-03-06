@@ -1,0 +1,7 @@
+{
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6",
+  "pricing_input_per_mtok_usd": 3.00,
+  "pricing_output_per_mtok_usd": 15.00,
+  "replay_timeout_seconds": 600
+}
