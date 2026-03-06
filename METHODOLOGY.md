@@ -106,13 +106,19 @@ The following measures ensure the agent cannot access information that would tri
 
 1. **No `github` extension**: the agent cannot call `gh pr view`, `gh pr diff`, or similar.
 2. **No `web` extension**: the agent cannot fetch the GitHub PR URL.
-3. **Git log truncation**: the base commit checkout produces a detached HEAD state. The agent can run `git log` and will see commit history up to (but not including) the merge commit. This is an acknowledged limitation; see Known Limitations.
+3. **Future git history purge**: after checking out the base commit, `replay.sh` removes all forward-looking git state using the technique from [SWE-bench issue #465](https://github.com/SWE-bench/SWE-bench/issues/465) and [PR #471](https://github.com/SWE-bench/SWE-bench/pull/471). Specifically:
+   - Remote origin removed (`git remote remove origin`)
+   - All local branches deleted (only detached HEAD remains)
+   - Tags created after the base commit timestamp deleted (past tags preserved)
+   - Reflog expired (`git reflog expire --expire=now --all`)
+   - Dangling objects garbage collected (`git gc --prune=now --aggressive`)
+   This ensures `git log`, `git log --all`, `git show-ref`, `git reflog`, `git tag`, and `git branch -a` reveal nothing beyond the base commit. Past history and past tags remain available as legitimate context.
 4. **PR body scrubbing**: file path references matching `sqlglot/` or `tests/` are removed from the issue body before it is passed to the agent.
 5. **No PR number in prompt**: the agent receives only the issue body text, not the PR number or URL.
 
 ### Leakage Check Protocol
 
-Before scoring, verify the agent did not output lines referencing the merged PR number or merge commit SHA in its session log. A `grep` pass on `session.jsonl` for the merge commit prefix (first 8 chars) flags potential leakage. Results are recorded in the run metadata.
+Before scoring, verify the agent did not output lines referencing the merged PR number or merge commit SHA in its session log. A `grep` pass on `session.jsonl` for the merge commit prefix (first 8 chars) flags potential leakage. Results are recorded in the run metadata. This serves as a second-line detection mechanism in case the purge is incomplete.
 
 ---
 
@@ -220,7 +226,7 @@ Lower is better. This metric is undefined (empty) when `jaccard = 0` (division b
 
 ## Known Limitations
 
-1. **Git history visibility**: The agent can access `git log` and may infer from commit messages what files were recently changed. We do not truncate git history because doing so would produce an unrealistic codebase state. This is acknowledged as a partial data leakage vector.
+1. **Residual git leakage**: Future git history is purged after checkout (remote, branches, tags, reflog, dangling objects) following [SWE-bench's technique](https://github.com/SWE-bench/SWE-bench/issues/465). However, if `git gc` fails to collect all dangling objects, some future commit data may remain accessible via low-level git commands (e.g., `git cat-file`). The leakage check protocol provides a second-line detection mechanism.
 
 2. **PR body as issue proxy**: sqlglot does not consistently link PRs to GitHub issues. The PR body is used as the issue body proxy. PR bodies written by the same author whose changes we are measuring may contain implicit context (e.g., "I changed X to fix Y") that a separate issue author would not include.
 

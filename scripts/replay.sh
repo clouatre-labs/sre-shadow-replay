@@ -139,6 +139,25 @@ cp -r "$CACHE_DIR" "$WORK_TREE"
 cd "$WORK_TREE"
 git checkout "$BASE_COMMIT" --quiet 2>/dev/null
 
+# Purge future git history (SWE-bench technique, issue #465 / PR #471)
+# Preserves all history up to and including base commit.
+# Removes everything after: future commits, branches, tags, reflog, remote.
+echo "--- Purging future git history..."
+git remote remove origin 2>/dev/null || true
+for branch in $(git branch --format='%(refname:short)' | grep -v '^\*'); do
+    git branch -D "$branch" 2>/dev/null || true
+done
+BASE_TS="$(git log -1 --format=%at "$BASE_COMMIT")"
+for tag in $(git tag -l); do
+    TAG_TS="$(git log -1 --format=%at "$tag" 2>/dev/null || echo "0")"
+    if [[ "$TAG_TS" -gt "$BASE_TS" ]]; then
+        git tag -d "$tag" 2>/dev/null || true
+    fi
+done
+git reflog expire --expire=now --all 2>/dev/null || true
+git gc --prune=now --aggressive --quiet 2>/dev/null || true
+echo "Purge complete: remote removed, future branches/tags deleted, reflog expired, gc done"
+
 # Run agent
 if [[ "$GOOSE_AVAILABLE" -eq 1 ]]; then
     echo "--- Running Goose agent..."
