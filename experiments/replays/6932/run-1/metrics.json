@@ -1,0 +1,35 @@
+{
+  "pr_number": 6932,
+  "run_id": "run-1",
+  "agent_files": [
+    "pyproject.toml",
+    "sqlglot/typing/duckdb.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "human_files": [
+    "sqlglot/typing/duckdb.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "intersection": [
+    "sqlglot/typing/duckdb.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "precision": 0.6667,
+  "recall": 1.0,
+  "jaccard": 0.6667,
+  "scope_creep": [
+    "pyproject.toml"
+  ],
+  "scope_creep_count": 1,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-06T23:47:06Z",
+  "end_ts": "2026-03-06T23:55:00Z",
+  "wall_clock_seconds": 474,
+  "input_tokens": 15055,
+  "output_tokens": 150,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6",
+  "goose_exit_code": 0,
+  "cost_usd": 0.047415
+}

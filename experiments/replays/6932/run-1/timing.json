@@ -1,0 +1,10 @@
+{
+  "start_ts": "2026-03-06T23:47:06Z",
+  "end_ts": "2026-03-06T23:55:00Z",
+  "wall_clock_seconds": 474,
+  "input_tokens": 15055,
+  "output_tokens": 150,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6",
+  "goose_exit_code": 0
+}

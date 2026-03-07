@@ -1,0 +1,30 @@
+diff --git a/sqlglot/typing/spark2.py b/sqlglot/typing/spark2.py
+index 82e8f488..8f21e0bc 100644
+--- a/sqlglot/typing/spark2.py
++++ b/sqlglot/typing/spark2.py
+@@ -62,5 +62,6 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
+             self, e, "this", "fill_pattern", target_type=exp.DataType.Type.TEXT
+         )
+     },
++    exp.Overlay: {"annotator": lambda self, e: self._annotate_by_args(e, "this")},
+     exp.Substring: {"annotator": lambda self, e: self._annotate_by_args(e, "this")},
+ }
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index ba2d93be..5da9ff7a 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -173,6 +173,14 @@ BINARY;
+ -- Spark2 / Spark3 / Databricks
+ --------------------------------------
+ 
++# dialect: spark2, spark, databricks
++OVERLAY(tbl.str_col PLACING tbl.str_col FROM 1);
++STRING;
++
++# dialect: spark2, spark, databricks
++OVERLAY(tbl.bin_col PLACING tbl.bin_col FROM 1);
++BINARY;
++
+ # dialect: spark2, spark, databricks
+ SUBSTRING(tbl.str_col, 0, 0);
+ STRING;

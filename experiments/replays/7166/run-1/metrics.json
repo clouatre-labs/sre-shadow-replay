@@ -1,0 +1,39 @@
+{
+  "pr_number": 7166,
+  "run_id": "run-1",
+  "agent_files": [
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/dialects/spark.py",
+    "sqlglot/generator.py",
+    "tests/dialects/test_databricks.py",
+    "tests/dialects/test_spark.py"
+  ],
+  "human_files": [
+    "sqlglot/dialects/spark.py",
+    "tests/dialects/test_spark.py"
+  ],
+  "intersection": [
+    "sqlglot/dialects/spark.py",
+    "tests/dialects/test_spark.py"
+  ],
+  "precision": 0.4,
+  "recall": 1.0,
+  "jaccard": 0.4,
+  "scope_creep": [
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/generator.py",
+    "tests/dialects/test_databricks.py"
+  ],
+  "scope_creep_count": 3,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-07T01:31:09Z",
+  "end_ts": "2026-03-07T01:40:59Z",
+  "wall_clock_seconds": 590,
+  "input_tokens": 12934,
+  "output_tokens": 655,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6",
+  "goose_exit_code": 0,
+  "cost_usd": 0.048627
+}
