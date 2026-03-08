@@ -1,0 +1,111 @@
+diff --git a/sqlglot/dialects/duckdb.py b/sqlglot/dialects/duckdb.py
+index 8a09ae8a..f78b20d6 100644
+--- a/sqlglot/dialects/duckdb.py
++++ b/sqlglot/dialects/duckdb.py
+@@ -4186,3 +4186,10 @@ class DuckDB(Dialect):
+                 corr_expr = expression  # make mypy happy
+ 
+             return self.sql(exp.case().when(exp.IsNan(this=corr_expr), exp.null()).else_(corr_expr))
++
++        def setitem_sql(self, expression: exp.SetItem) -> str:
++            # Normalize Spark's 'VAR' kind to DuckDB's 'VARIABLE' keyword
++            if expression.args.get("kind") == "VAR":
++                expression = expression.copy()
++                expression.set("kind", "VARIABLE")
++            return super().setitem_sql(expression)
+diff --git a/sqlglot/dialects/spark.py b/sqlglot/dialects/spark.py
+index 014c98c2..c7beb98a 100644
+--- a/sqlglot/dialects/spark.py
++++ b/sqlglot/dialects/spark.py
+@@ -2,7 +2,7 @@ from __future__ import annotations
+ 
+ import typing as t
+ 
+-from sqlglot import exp
++from sqlglot import exp, parser
+ from sqlglot.dialects.dialect import (
+     array_append_sql,
+     rename_func,
+@@ -186,6 +186,12 @@ class Spark(Spark2):
+             "SUBSTR": lambda self: self._parse_substring(),
+         }
+ 
++        SET_PARSERS = {
++            **Spark2.Parser.SET_PARSERS,
++            "VAR": lambda self: self._parse_set_item_assignment("VAR"),
++            "VARIABLE": lambda self: self._parse_set_item_assignment("VAR"),
++        }
++
+         STATEMENT_PARSERS = {
+             **Spark2.Parser.STATEMENT_PARSERS,
+             TokenType.DECLARE: lambda self: self._parse_declare(),
+@@ -287,6 +293,14 @@ class Spark(Spark2):
+         def computedcolumnconstraint_sql(self, expression: exp.ComputedColumnConstraint) -> str:
+             return f"GENERATED ALWAYS AS ({self.sql(expression, 'this')})"
+ 
++        def setitem_sql(self, expression: exp.SetItem) -> str:
++            # Preserve the VAR keyword for SET VAR assignments (Spark/Databricks dialect)
++            # Also map VARIABLE (from e.g. DuckDB) to VAR
++            if expression.args.get("kind") in ("VAR", "VARIABLE"):
++                this = self.sql(expression, "this")
++                return f"VAR {this}"
++            return super().setitem_sql(expression)
++
+         def anyvalue_sql(self, expression: exp.AnyValue) -> str:
+             return self.function_fallback_sql(expression)
+ 
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index 950c30a2..a30c4ade 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -2646,7 +2646,7 @@ class Generator(metaclass=_Generator):
+ 
+     def setitem_sql(self, expression: exp.SetItem) -> str:
+         kind = self.sql(expression, "kind")
+-        if not self.SET_ASSIGNMENT_REQUIRES_VARIABLE_KEYWORD and kind == "VARIABLE":
++        if not self.SET_ASSIGNMENT_REQUIRES_VARIABLE_KEYWORD and kind in ("VARIABLE", "VAR"):
+             kind = ""
+         else:
+             kind = f"{kind} " if kind else ""
+diff --git a/tests/dialects/test_databricks.py b/tests/dialects/test_databricks.py
+index 6bec50d2..2114374b 100644
+--- a/tests/dialects/test_databricks.py
++++ b/tests/dialects/test_databricks.py
+@@ -480,3 +480,8 @@ class TestDatabricks(Validator):
+         self.validate_identity("DECLARE VARIABLE myvar INT DEFAULT 1", "DECLARE myvar INT = 1")
+         self.validate_identity("DECLARE x, y, z INT DEFAULT 1", "DECLARE x, y, z INT = 1")
+         self.validate_identity("DECLARE x INT = 1")
++
++    def test_set_var(self):
++        self.validate_identity("SET VAR x = 1")
++        self.validate_identity("SET VARIABLE x = 1", "SET VAR x = 1")
++        self.validate_identity("SET VAR x = DEFAULT")
+diff --git a/tests/dialects/test_spark.py b/tests/dialects/test_spark.py
+index e262595d..b669392e 100644
+--- a/tests/dialects/test_spark.py
++++ b/tests/dialects/test_spark.py
+@@ -1319,3 +1319,24 @@ TBLPROPERTIES (
+         self.validate_identity("DECLARE VARIABLE myvar INT DEFAULT 5", "DECLARE myvar INT = 5")
+         self.validate_identity("DECLARE x, y, z INT DEFAULT 1", "DECLARE x, y, z INT = 1")
+         self.validate_identity("DECLARE x INT = 5")
++
++    def test_set_var(self):
++        self.validate_identity("SET VAR x = 1")
++        self.validate_identity("SET VARIABLE x = 1", "SET VAR x = 1")
++        self.validate_identity("SET VAR x = DEFAULT")
++
++        self.validate_all(
++            "SET VAR x = 1",
++            read={
++                "spark": "SET VAR x = 1",
++                "databricks": "SET VAR x = 1",
++                "duckdb": "SET VARIABLE x = 1",
++            },
++            write={
++                "spark": "SET VAR x = 1",
++                "databricks": "SET VAR x = 1",
++                "duckdb": "SET VARIABLE x = 1",
++                "bigquery": "SET x = 1",
++                "snowflake": "SET x = 1",
++            },
++        )

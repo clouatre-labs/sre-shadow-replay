@@ -1,0 +1,26 @@
+diff --git a/sqlglot/typing/spark.py b/sqlglot/typing/spark.py
+index 4617c0035..6f2b2aa8e 100644
+--- a/sqlglot/typing/spark.py
++++ b/sqlglot/typing/spark.py
+@@ -5,5 +5,6 @@ from sqlglot.typing.spark2 import EXPRESSION_METADATA
+ 
+ EXPRESSION_METADATA = {
+     **EXPRESSION_METADATA,
++    exp.CurrentTimezone: {"returns": exp.DataType.Type.VARCHAR},
+     exp.Localtimestamp: {"returns": exp.DataType.Type.TIMESTAMPNTZ},
+ }
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index 55f7467e8..c62485b96 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -327,6 +327,10 @@ BINARY;
+ LOCALTIMESTAMP();
+ TIMESTAMPNTZ;
+ 
++# dialect: spark, databricks
++CURRENT_TIMEZONE();
++VARCHAR;
++
+ # dialect: hive, spark2, spark, databricks
+ ENCODE(tbl.str_col, tbl.str_col);
+ BINARY;

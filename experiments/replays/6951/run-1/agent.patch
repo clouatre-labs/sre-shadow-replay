@@ -1,0 +1,41 @@
+diff --git a/sqlglot/typing/presto.py b/sqlglot/typing/presto.py
+index b0099932..1cffeb59 100644
+--- a/sqlglot/typing/presto.py
++++ b/sqlglot/typing/presto.py
+@@ -8,6 +8,10 @@ EXPRESSION_METADATA = {
+     **{
+         expr_type: {"returns": exp.DataType.Type.BIGINT}
+         for expr_type in {
++            exp.BitwiseAnd,
++            exp.BitwiseNot,
++            exp.BitwiseOr,
++            exp.BitwiseXor,
+             exp.Length,
+             exp.Levenshtein,
+             exp.StrPosition,
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index 7147d8a4..d1f82357 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -5935,4 +5935,20 @@ BIGINT;
+ 
+ # dialect: presto, trino
+ WIDTH_BUCKET(tbl.double_col, tbl.array_col);
++BIGINT;
++
++# dialect: presto, trino
++BITWISE_AND(tbl.bigint_col, tbl.bigint_col);
++BIGINT;
++
++# dialect: presto, trino
++BITWISE_OR(tbl.bigint_col, tbl.bigint_col);
++BIGINT;
++
++# dialect: presto, trino
++BITWISE_XOR(tbl.bigint_col, tbl.bigint_col);
++BIGINT;
++
++# dialect: presto, trino
++BITWISE_NOT(tbl.bigint_col);
+ BIGINT;
+\ No newline at end of file

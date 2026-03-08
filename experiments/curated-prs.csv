@@ -1,1 +1,31 @@
 pr_number,repo,title,type,files_changed,complexity_tier,issue_body_chars,base_commit,merge_commit
+6547,tobymao/sqlglot,"feat(databricks, snowflake): support UNIFORM function",feat,6,complex,841,4a5730242787920d0a2412aef495eb2eeaaa2119,980f53852444ec38c45483cbbf63a286244262a6
+6594,tobymao/sqlglot,feat(snowflake)!: support transpilation of TRY_TO_BOOLEAN from Snowflake to DuckDB,feat,2,simple,643,8ef9d7b2183589217df10004798fd751d4d618d0,b93291bee7ada32b4d686db919d8d3d683d95425
+6595,tobymao/sqlglot,fix(duckdb)!: Fix BQ's `exp.Date` transpilation,fix,2,simple,2303,87fda9db8f5d9abdf69af991b32ec05d929d626a,62c0ef0ad4579a55d65498eddd4e649ae464b559
+6611,tobymao/sqlglot,feat(postgres)!: support adjacent ranges operator,feat,6,complex,240,13014e0f01d10f0a078ef8aed4569d3aa8bd741b,d26ff4444fba6697f25efa3dea5ab751fe560f6b
+6614,tobymao/sqlglot,feat(snowflake)!: support transpilation of LAST_DAY from Snowflake to Duckdb,feat,3,medium,1549,8f3888746a1f36446544483e920e1287ebf76b4f,870dba41cc88dc9e4802f3695f3f715e0c35e0ed
+6644,tobymao/sqlglot,feat(snowflake)!: update transpilation of DATE_TRUNC to duckdb,feat,4,medium,2264,bbcfd8312c357949c350f4ca93ad2c899d7d5774,c9a70c004e0ec563e8a712668a30da9856cb0516
+6699,tobymao/sqlglot,"fix(spark, databricks): parse LTRIM/RTRIM",fix,4,medium,363,91b3678c4e2380b3b344cc37643d12528c3e142b,2a3f1fe854746141299303fdae36ce33688722e1
+6700,tobymao/sqlglot,"fix(doris, starrocks)!: Fix `UPDATE` statement for multi table updates",fix,6,complex,532,2a3f1fe854746141299303fdae36ce33688722e1,fb8f57ac54a4e0213941f3bd057ccb03c4e125b7
+6708,tobymao/sqlglot,"feat(spark,databricks)!: annotate the CURRENT_TIMEZONE",feat,2,simple,427,c447df71a645f55e4798887bde4d42285f5dea4a,769fee258f2467bf610aa0f11290c32f4650bf80
+6710,tobymao/sqlglot,feat(oracle): Added support for IN/OUT keywords in stored procedure parameters,feat,6,complex,599,52de0a5c9ebc14c738041e47a385981f072291a9,32ef521167c6b472876bb798fbafa178c37499ca
+6752,tobymao/sqlglot,feat(optimizer)!: Annotate `SPACE` function to Hive,feat,3,medium,1196,8f9419b2789f8bfcfd8bfc28832e5195d4e644f2,27460e614e62271a5d1ec5a19e442e685d65c709
+6762,tobymao/sqlglot,"feat(databricks,duckdb,postgres,spark,snowflake)!: ARRAY_APPEND null propagation",feat,8,complex,535,8634a8a737d5ee6c40b4d33545e9f928e1e07df4,8cda928b3807685f6de5e89eac12522433cfddd6
+6777,tobymao/sqlglot,feat(optimizer)!: parse and annotate bq NET.REG_DOMAIN,feat,6,complex,205,d6ecc7367783d81aab7b6341cd3400ff0edf4794,7f4a1502dd6e039677979b67958e618a15867ed5
+6846,tobymao/sqlglot,feat(snowflake)!: Transpilation for Snowflake EDITDISTANCE to Duckdb,feat,3,medium,417,3852e1d6e9bab29b4a9678d06e0583d38232165f,4a7e5a1050b3704295dab11aaec22b238be1659d
+6932,tobymao/sqlglot,fix(optimizer)!: Annotate `BIT_LENGTH(expr)` for `DuckDB`,fix,2,simple,502,e750ce7c4ac8235e395fe077c6c9b6d5572affaf,9b05968e23fe94f804d22d77bf91ab44071aea73
+6951,tobymao/sqlglot,feat(optimizer)!: Annotate `BITWISE OPERATORS` for Presto/Trino,feat,2,simple,1048,d01657a581a42f1588436882d190b20f4ea004a0,cec0f27f17f01c7b1355f1c1306a0f08af639331
+6955,tobymao/sqlglot,feat(parser)!!: robust parsing for stored procedures,feat,8,complex,1289,1e753a35405edaf9b6a1b90fccd74eaef23a028b,a41a3e9421affd046968693c275d5531f89d098f
+6961,tobymao/sqlglot,feat(generator): Add numeric TRUNC output for additional dialects,feat,12,complex,1152,1418494f777358f4b6bd1e05ee5cb02591d92c74,ff1fd521147cb66acc36f2da7b1590d9e7f8140f
+6970,tobymao/sqlglot,feat(optimizer)!: Annotate `OVERLAY(expr)` for Spark/DBX,feat,2,simple,429,ade3639b337d0222a00feec7ac9762571586f7ab,57093d15d5bbc2217366ace42db109e215dca79f
+7029,tobymao/sqlglot,fix(duckdb)!: update transpilation of SEQ functions and GENERATOR for DuckDB,fix,2,simple,1490,235b8ac24d41324239d6581b5636ad19ec7b9376,f476d071a1412fb2d9cd6f39067380252ab4c15a
+7050,tobymao/sqlglot,Refactor!: use `IntEnum` instead of auto/string enums,refactor,2,simple,228,58419e1f47119a135276a722b85ccfa92ae3d1f1,13ee31281fe21c670f8ce1656520c18762e8402f
+7077,tobymao/sqlglot,feat(optimizer)!: annotate `DEGREES(expr)` for T-SQL,feat,2,simple,237,eaba8dc26b2ec28b8074eb0cf2b3db086cf7ccc3,a87c1b46b54ef7f6895c68666c05041924691576
+7080,tobymao/sqlglot,feat(DuckDb): Add transpilation support for ARRAY_MAX and ARRAY_MIN functions,feat,6,complex,3860,f12a58f86501ef726335f147b7171d01b162ea79,b569a3d7628600608144d1d93e17eab4cafe4217
+7104,tobymao/sqlglot,"feat(optimizer)!: parse and annotate ELEMENT_AT for spark2, spark, dbx",feat,5,medium,223,e19abfded7c159c30f53063d10ae57406553f75d,0c4f74f6574d3acf06935626615e2e1f14ae9c04
+7117,tobymao/sqlglot,refactor!: expression_core which is now compilable by mypyc,refactor,11,complex,973,37fa8c7219a2f17a351f948d6eb314a543f8784d,1150e3911b0b82a9683f765de11605b14fd66ddb
+7147,tobymao/sqlglot,"feat(trino): Add support for ARRAY_FIRST(array, x -> predicate)",feat,3,medium,359,842462e2fc36f7d69ecc4989d0c8d4600e013c61,63f29812e41e1d7d4bb3de349f33c42ee8103498
+7153,tobymao/sqlglot,feat(DuckDB)!: Enable transpilation for ARRAY_POSITION function,feat,5,medium,2335,45c33e7387035c7960b5a58b9aca4c6e0fdcebdd,ad9d114aea7f7553485631372d99ec5e5cf85045
+7166,tobymao/sqlglot,"feat(spark, dbx): robust SET support",feat,2,simple,214,6fe108a8e4a94ceaacaafb99b47bbd12fb03d8ee,b97da8dea15c39867b23db01624464e7d15427e7
+7200,tobymao/sqlglot,feat(duckdb)!: Implement transpilation for ARRAYS_OVERLAP function,feat,4,medium,2319,c341a3d7351e619d8935866611ffb23a32de24f4,a39d3e999e707114226edb806061b80e0164489a
+7209,tobymao/sqlglot,feat(clickhouse): support cityHash64,feat,3,medium,822,9431fd457dc4dbad7a963828c5303889573079d3,cc8724d791938e440c8d72d72c4ec301ca02eee9
