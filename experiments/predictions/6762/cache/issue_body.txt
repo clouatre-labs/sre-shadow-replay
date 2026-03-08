@@ -1,0 +1,11 @@
+The `ARRAY_APPEND` function handles `NULL` input arrays differently across the dialects that support it:
+
+| Database   | Behavior | Result |
+|------------|----------|--------|
+| Snowflake  | Returns NULL | NULL |
+| DuckDB     | Creates new array | `[element]` |
+| PostgreSQL | Creates new array | `{element}` |
+| Databricks | Returns NULL | NULL |
+| Spark | Returns NULL | NULL |
+
+This PR introduces a new `arg_types` parameter `null_propagation` to preserve `NULL` handling semantics when transpiling between these dialects.

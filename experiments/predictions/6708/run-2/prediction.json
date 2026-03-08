@@ -1,0 +1,10 @@
+{
+  "pr_number": 6708,
+  "run_id": "run-2",
+  "predicted_files": [
+    "sqlglot/optimizer/annotate_types.py",
+    "sqlglot/typing/spark.py",
+    "sqlglot/typing/spark2.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ]
+}

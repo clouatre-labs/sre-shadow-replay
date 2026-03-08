@@ -1,0 +1,37 @@
+diff --git a/sqlglot/typing/spark.py b/sqlglot/typing/spark.py
+index 1cb7b9c731..a83a18a85f 100644
+--- a/sqlglot/typing/spark.py
++++ b/sqlglot/typing/spark.py
+@@ -3,6 +3,7 @@
+ from sqlglot import exp
+ from sqlglot.typing.spark2 import EXPRESSION_METADATA
+ 
++
+ EXPRESSION_METADATA = {
+     **EXPRESSION_METADATA,
+     **{
+@@ -26,4 +27,5 @@
+     exp.ToBinary: {"returns": exp.DataType.Type.BINARY},
+     exp.DateFromUnixDate: {"returns": exp.DataType.Type.DATE},
+     exp.ArraySize: {"returns": exp.DataType.Type.INT},
++    exp.Overlay: {"annotator": lambda self, e: self._annotate_by_args(e, "this")},
+ }
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index ba2d93be82..f0bf16e264 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -653,6 +653,14 @@ STRING;
+ FORMAT_STRING(tbl.str_col, tbl.int_col, tbl.str_col);
+ STRING;
+ 
++# dialect: spark, databricks
++OVERLAY(tbl.str_col PLACING tbl.str_col FROM tbl.int_col);
++STRING;
++
++# dialect: spark, databricks
++OVERLAY(tbl.bin_col PLACING tbl.bin_col FROM tbl.int_col FOR tbl.int_col);
++BINARY;
++
+ --------------------------------------
+ -- BigQuery
+ --------------------------------------

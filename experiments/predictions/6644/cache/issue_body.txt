@@ -1,0 +1,53 @@
+Improve Snowflake --> DuckDB transpilation of DATE_TRUNC.
+
+
+**Return types / casting**
+- Snowflake's return type matches the type of the date/time **value** (second argument) -- [docs](https://docs.snowflake.com/en/sql-reference/functions/date_trunc#returns)
+- DuckDB's return type matches the date/time **granularity** (first argument) -- [docs](https://duckdb.org/docs/stable/sql/functions/date#date_truncpart-date)
+
+```
+Snowflake: SELECT DATE_TRUNC(YEAR, TIMESTAMP '2026-01-01 00:00:00')
+2026-01-01 00:00:00
+Transpiled DuckDB: SELECT DATE_TRUNC('YEAR', CAST('2026-01-01 00:00:00' AS TIMESTAMP))
+2026-01-01
+
+
+Snowflake: SELECT DATE_TRUNC('HOUR', DATE '2026-01-01')
+2026-01-01
+Transpiled DuckDB: DATE_TRUNC('HOUR', CAST('2026-01-01' AS DATE))
+2026-01-01 00:00:00
+```
+
+Fix:
+In the Snowflake parser, modify the AST when the input of `DATE_TRUNC(granularity_part, value)` is either not both dates or both not times. Then, handle casting to the granularity_part type on DuckDB side.
+```
+Snowflake: DATE_TRUNC(YEAR, TIMESTAMP '2026-01-01 00:00:00')
+2026-01-01 00:00:00
+Transpiled DuckDB: CAST(DATE_TRUNC('YEAR', CAST('2026-01-01 00:00:00' AS TIMESTAMP)) AS TIMESTAMP)
+2026-01-01 00:00:00
+
+Snowflake: DATE_TRUNC('HOUR', DATE '2026-01-01')
+2026-01-01
+Transpiled DuckDB: CAST(DATE_TRUNC('HOUR', CAST('2026-01-01' AS DATE)) AS DATE)
+2026-01-01
+```
+
+**Support Snowflake's DATE_TRUNC(time_part, time)**
+Snowflake can truncate time input (HH:MM:SS), but DuckDB cannot.
+```
+Snowflake: SELECT DATE_TRUNC(HOUR, TIME '14:23:45.123456') AS time_hour
+14:00:00
+DuckDB: SELECT DATE_TRUNC('HOUR', CAST('14:23:45.123456' AS TIME)) AS time_hour
+Binder Error:
+No function matches the given name and argument types 'date_trunc(STRING_LITERAL, TIME)'. You might need to add explicit type casts.
+        Candidate functions:
+        date_trunc(VARCHAR, DATE) -> TIMESTAMP
+        date_trunc(VARCHAR, INTERVAL) -> INTERVAL
+        date_trunc(VARCHAR, TIMESTAMP) -> TIMESTAMP
+```
+Fix: Add a dummy date to the time expression to create a full date and time. After truncating, cast it to TIME to isolate the time.
+
+```
+DuckDB: SELECT CAST(DATE_TRUNC('HOUR', CAST('1970-01-01' AS DATE) + CAST('14:23:45.123456' AS TIME)) AS TIME);
+14:00:00
+```

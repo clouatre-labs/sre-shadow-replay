@@ -1,0 +1,5 @@
+Enhanced transpilation support for Snowflake's [EDITDISTANCE](https://docs.snowflake.com/en/sql-reference/functions/editdistance) function with `max_dist` parameter.
+
+- Basic `EDITDISTANCE(a, b)` transpiles to `LEVENSHTEIN(a, b)`
+- `EDITDISTANCE(a, b, max_dist)` emulates Snowflake semantics using `LEAST(LEVENSHTEIN(a, b), max_dist)`
+- Warns about unsupported cost parameters (`ins_cost`, `del_cost`, `sub_cost`)

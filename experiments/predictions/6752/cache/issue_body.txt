@@ -1,0 +1,46 @@
+This PR annotate `SPACE` function for Hive and its derivates
+
+Documentation:
+- [Hive](https://cwiki.apache.org/confluence/display/Hive/LanguageManual+UDF#:~:text=string-,space(int%20n),-Returns%20a%20string)
+- [Spark](https://spark.apache.org/docs/latest/api/sql/index.html#space)
+- [Databricks](https://docs.databricks.com/aws/en/sql/language-manual/functions/space)
+
+**Hive:**
+```python
+SELECT space(2), typeof(space(2))
+Hive Version: _c0
+4.1.0
++------+---------+--+
+| _c0  |   _c1   |
++------+---------+--+
+|      | string  |
++------+---------+--+
+```
+
+**Spark2:**
+```python
+SELECT space(2)
+Spark Version: 2.4.8
++--------+
+|space(2)|
++--------+
+|        |
++--------+
+```
+
+**Spark:**
+```python
+SELECT space(2), typeof(space(2)), version()
++--------+----------------+--------------------+
+|space(2)|typeof(space(2))|           version()|
++--------+----------------+--------------------+
+|        |          string|3.5.5 7c29c664cdc...|
++--------+----------------+--------------------+
+```
+
+**DBX:**
+```python
+SELECT space(2), typeof(space(2)), version()
+space(2)	typeof(space(2))	version()
+  	string	4.0.0 0000000000000000000000000000000000000000
+```

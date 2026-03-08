@@ -1,0 +1,12 @@
+{
+  "pr_number": 6547,
+  "run_id": "run-3",
+  "predicted_files": [
+    "sqlglot/expressions.py",
+    "sqlglot/generator.py",
+    "sqlglot/dialects/snowflake.py",
+    "sqlglot/dialects/databricks.py",
+    "tests/dialects/test_snowflake.py",
+    "tests/dialects/test_databricks.py"
+  ]
+}

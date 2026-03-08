@@ -1,0 +1,36 @@
+{
+  "pr_number": 6970,
+  "run_id": "run-1",
+  "agent_files": [
+    "sqlglot/typing/spark.py",
+    "sqlglot/typing/spark2.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "human_files": [
+    "sqlglot/typing/spark.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "intersection": [
+    "sqlglot/typing/spark.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "precision": 0.6667,
+  "recall": 1.0,
+  "jaccard": 0.6667,
+  "f1": 0.8,
+  "scope_creep": [
+    "sqlglot/typing/spark2.py"
+  ],
+  "scope_creep_count": 1,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:25+00:00",
+  "end_ts": "2026-03-08T14:50:26+00:00",
+  "wall_clock_seconds": 1,
+  "latency_ms": 1287,
+  "input_tokens": 3456,
+  "output_tokens": 46,
+  "cost_usd": 0.011058,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

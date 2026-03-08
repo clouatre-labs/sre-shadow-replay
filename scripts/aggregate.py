@@ -90,6 +90,7 @@ def write_summary(records, prs, output_dir):
         precisions = [r["precision"] for r in group]
         recalls = [r["recall"] for r in group]
         jaccards = [r["jaccard"] for r in group]
+        f1s = [r["f1"] for r in group]
         scope_creeps = [r["scope_creep_count"] for r in group]
         wall_clocks = [r.get("wall_clock_seconds") for r in group]
         costs = [r.get("cost_usd") for r in group]
@@ -98,6 +99,7 @@ def write_summary(records, prs, output_dir):
         m_p = mean(precisions)
         m_r = mean(recalls)
         m_j = mean(jaccards)
+        m_f1 = mean(f1s)
         m_s = mean(scope_creeps)
         m_wc = mean(wall_clocks)
         m_cost = mean(costs)
@@ -110,10 +112,12 @@ def write_summary(records, prs, output_dir):
             "mean_precision": round(m_p, 4) if m_p is not None else "",
             "mean_recall": round(m_r, 4) if m_r is not None else "",
             "mean_jaccard": round(m_j, 4) if m_j is not None else "",
+            "mean_f1": round(m_f1, 4) if m_f1 is not None else "",
             "mean_scope_creep_count": round(m_s, 4) if m_s is not None else "",
             "std_precision": round(stdev(precisions), 4) if stdev(precisions) is not None else "",
             "std_recall": round(stdev(recalls), 4) if stdev(recalls) is not None else "",
             "std_jaccard": round(stdev(jaccards), 4) if stdev(jaccards) is not None else "",
+            "std_f1": round(stdev(f1s), 4) if stdev(f1s) is not None else "",
             "agent_empty_rate": round(empty_count / len(group), 4),
             "mean_wall_clock_seconds": round(m_wc, 2) if m_wc is not None else "",
             "mean_cost_usd": round(m_cost, 6) if m_cost is not None else "",
@@ -122,8 +126,8 @@ def write_summary(records, prs, output_dir):
 
     out_path = os.path.join(output_dir, "summary.csv")
     fieldnames = [
-        "tier", "n", "mean_precision", "mean_recall", "mean_jaccard",
-        "mean_scope_creep_count", "std_precision", "std_recall", "std_jaccard",
+        "tier", "n", "mean_precision", "mean_recall", "mean_jaccard", "mean_f1",
+        "mean_scope_creep_count", "std_precision", "std_recall", "std_jaccard", "std_f1",
         "agent_empty_rate", "mean_wall_clock_seconds", "mean_cost_usd", "total_cost_usd",
     ]
     with open(out_path, "w", newline="", encoding="utf-8") as f:
@@ -214,13 +218,16 @@ def write_consistency(records, prs, output_dir):
         precisions = [r["precision"] for r in group if r["precision"] is not None]
         recalls = [r["recall"] for r in group if r["recall"] is not None]
         jaccards = [r["jaccard"] for r in group if r["jaccard"] is not None]
+        f1s = [r["f1"] for r in group if r.get("f1") is not None]
 
         m_p = mean(precisions)
         m_r = mean(recalls)
         m_j = mean(jaccards)
+        m_f1 = mean(f1s)
         s_p = stdev(precisions)
         s_r = stdev(recalls)
         s_j = stdev(jaccards)
+        s_f1 = stdev(f1s)
 
         consistent = 1 if (s_j is not None and s_j <= 0.1) else (0 if s_j is not None else 1)
 
@@ -234,6 +241,8 @@ def write_consistency(records, prs, output_dir):
             "recall_std": round(s_r, 4) if s_r is not None else "",
             "jaccard_mean": round(m_j, 4) if m_j is not None else "",
             "jaccard_std": round(s_j, 4) if s_j is not None else "",
+            "f1_mean": round(m_f1, 4) if m_f1 is not None else "",
+            "f1_std": round(s_f1, 4) if s_f1 is not None else "",
             "consistent": consistent,
         })
 
@@ -243,6 +252,7 @@ def write_consistency(records, prs, output_dir):
         "precision_mean", "precision_std",
         "recall_mean", "recall_std",
         "jaccard_mean", "jaccard_std",
+        "f1_mean", "f1_std",
         "consistent",
     ]
     with open(out_path, "w", newline="", encoding="utf-8") as f:
@@ -324,16 +334,19 @@ def run_tests():
         {
             "pr_number": 7210, "run_id": "run-1",
             "precision": 1.0, "recall": 0.333, "jaccard": 0.333,
+            "f1": round(2 * 1.0 * 0.333 / (1.0 + 0.333), 4),
             "scope_creep": [], "scope_creep_count": 0, "agent_empty": False,
         },
         {
             "pr_number": 7210, "run_id": "run-2",
             "precision": 1.0, "recall": 0.333, "jaccard": 0.333,
+            "f1": round(2 * 1.0 * 0.333 / (1.0 + 0.333), 4),
             "scope_creep": [], "scope_creep_count": 0, "agent_empty": False,
         },
         {
             "pr_number": 7209, "run_id": "run-1",
             "precision": 0.5, "recall": 0.667, "jaccard": 0.5,
+            "f1": round(2 * 0.5 * 0.667 / (0.5 + 0.667), 4),
             "scope_creep": ["sqlglot/extra.py"], "scope_creep_count": 1,
             "agent_empty": False,
         },
@@ -351,6 +364,7 @@ def run_tests():
         simple_row = next(r for r in rows if r["tier"] == "simple")
         check("summary simple n", simple_row["n"], "2")
         check("summary simple mean_jaccard", simple_row["mean_jaccard"], "0.333")
+        check("summary simple mean_f1", simple_row["mean_f1"] != "", True)
 
         write_consistency(records, prs, tmpdir)
         with open(os.path.join(tmpdir, "consistency.csv"), newline="") as f:
@@ -359,6 +373,7 @@ def run_tests():
         pr7210 = next(r for r in rows if r["pr_number"] == "7210")
         check("consistency n_runs", pr7210["n_runs"], "2")
         check("consistency jaccard_std", pr7210["jaccard_std"], "0.0")
+        check("consistency f1_mean present", pr7210["f1_mean"] != "", True)
 
         write_failure_classifications(records, prs, tmpdir)
         with open(os.path.join(tmpdir, "failure-classifications.csv"), newline="") as f:
@@ -414,7 +429,7 @@ def run_tests():
         print(f"FAILED: {len(failures)} test(s)", file=sys.stderr)
         sys.exit(1)
     else:
-        print(f"OK: 16 checks passed")
+        print(f"OK: 18 checks passed")
         sys.exit(0)
 
 

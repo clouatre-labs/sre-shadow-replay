@@ -1,0 +1,11 @@
+In Trino, an addition to the `ARRAY_FIRST` function has been added, where the 2nd argument can be a predicate to match the returned element.
+
+This allows two use cases:
+
+```sql
+ARRAY_FIRST(ARRAY['a', 'b']) -- returns 'a'
+```
+```sql
+ARRAY_FIRST(ARRAY['a', 'b'], x -> x != 'a') -- returns 'b'
+```
+Reference: https://github.com/trinodb/trino/pull/27706

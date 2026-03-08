@@ -1,0 +1,37 @@
+{
+  "pr_number": 7209,
+  "run_id": "run-2",
+  "agent_files": [
+    "sqlglot/dialects/clickhouse.py",
+    "sqlglot/expressions/functions.py",
+    "tests/dialects/test_clickhouse.py"
+  ],
+  "human_files": [
+    "sqlglot/dialects/clickhouse.py",
+    "sqlglot/expressions/string.py",
+    "tests/dialects/test_clickhouse.py"
+  ],
+  "intersection": [
+    "sqlglot/dialects/clickhouse.py",
+    "tests/dialects/test_clickhouse.py"
+  ],
+  "precision": 0.6667,
+  "recall": 0.6667,
+  "jaccard": 0.5,
+  "f1": 0.6667,
+  "scope_creep": [
+    "sqlglot/expressions/functions.py"
+  ],
+  "scope_creep_count": 1,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:52+00:00",
+  "end_ts": "2026-03-08T14:50:57+00:00",
+  "wall_clock_seconds": 5,
+  "latency_ms": 4645,
+  "input_tokens": 3728,
+  "output_tokens": 221,
+  "cost_usd": 0.014499,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

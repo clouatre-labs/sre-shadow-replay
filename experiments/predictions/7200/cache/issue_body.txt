@@ -1,0 +1,40 @@
+The following issues were encountered while transpiling `ARRAYS_OVERLAP` from Snowflake to DuckDB:
+
+1. ARRAYS_OVERLAP is not in Snowflake's Parser.FUNCTIONS dict. It parses as Anonymous(`ARRAYS_OVERLAP`, ...) and      emits unchanged. DuckDB has no `ARRAYS_OVERLAP` function → runtime Catalog Error.
+2. Snowflake `ARRAYS_OVERLAP` is NULL-safe (NULLs treated as known values).
+   `[1,NULL,3] && [NULL,4,5] returns TRUE in Snowflake.`
+   DuckDB's equivalent && operator is NOT NULL-safe:
+  ` [1,NULL,3] && [NULL,4,5] returns FALSE in DuckDB.`
+ 
+ 
+ Snowflake Results:
+```
+  | OVERLAP_TRUE | OVERLAP_FALSE | OVERLAP_NULL | OVERLAP_EMPTY | OVERLAP_NULL_INPUT |
+  |--------------|---------------|--------------|---------------|--------------------|
+  | True         | False         | True         | False         | NULL               |
+
+```
+ 
+Transpilation:
+```
+python -m sqlglot --read snowflake --write duckdb "SELECT ARRAYS_OVERLAP([1,2,3], [2,3,4]) AS overlap_true, ARRAYS_OVERLAP([1,2,3], [4,5,6]) AS overlap_false, ARRAYS_OVERLAP([1,NULL,3], [NULL,4,5]) AS overlap_null, ARRAYS_OVERLAP([], [1,2]) AS overlap_empty, ARRAYS_OVERLAP(NULL, [1,2]) AS overlap_null_input"
+-->
+SELECT
+  ([1, 2, 3] && [2, 3, 4]) OR (ARRAY_LENGTH([1, 2, 3]) <> LIST_COUNT([1, 2, 3])
+  AND ARRAY_LENGTH([2, 3, 4]) <> LIST_COUNT([2, 3, 4])) AS "overlap_true",
+  ([1, 2, 3] && [4, 5, 6]) OR (ARRAY_LENGTH([1, 2, 3]) <> LIST_COUNT([1, 2, 3])
+  AND ARRAY_LENGTH([4, 5, 6]) <> LIST_COUNT([4, 5, 6])) AS "overlap_false",
+  ([1, NULL, 3] && [NULL, 4, 5]) OR (ARRAY_LENGTH([1, NULL, 3]) <> LIST_COUNT([1, NULL, 3])
+  AND ARRAY_LENGTH([NULL, 4, 5]) <> LIST_COUNT([NULL, 4, 5])) AS "overlap_null",
+  ([] && [1, 2]) OR (ARRAY_LENGTH([]) <> LIST_COUNT([]) AND ARRAY_LENGTH([1, 2]) <> LIST_COUNT([1, 2])) AS "overlap_empty",
+  (NULL && [1, 2]) OR (ARRAY_LENGTH(NULL) <> LIST_COUNT(NULL)
+  AND ARRAY_LENGTH([1, 2]) <> LIST_COUNT([1, 2])) AS "overlap_null_input"
+```
+
+Duckdb:
+```
+ overlap_true │ overlap_false │ overlap_null │ overlap_empty │ overlap_null_input │
+│   boolean    │    boolean    │   boolean    │    boolean    │      boolean       │
+├──────────────┼───────────────┼──────────────┼───────────────┼────────────────────┤
+│ true         │ false         │ true         │ false         │ NULL               │
+```

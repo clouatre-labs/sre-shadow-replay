@@ -1,0 +1,1810 @@
+diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py
+index a73347bc47..6fc17cb7d1 100644
+--- a/sqlglot/dialects/dialect.py
++++ b/sqlglot/dialects/dialect.py
+@@ -12,8 +12,8 @@
+ from sqlglot.dialects import DIALECT_MODULE_NAMES
+ from sqlglot.errors import ParseError
+ from sqlglot.generator import Generator, unsupported_args
++from sqlglot.expressions import apply_index_offset
+ from sqlglot.helper import (
+-    apply_index_offset,
+     AutoName,
+     flatten,
+     is_int,
+diff --git a/sqlglot/expression_core.py b/sqlglot/expression_core.py
+new file mode 100644
+index 0000000000..e2cb397e23
+--- /dev/null
++++ b/sqlglot/expression_core.py
+@@ -0,0 +1,442 @@
++from __future__ import annotations
++
++import sys
++import typing as t
++from collections import deque
++from copy import deepcopy
++from mypy_extensions import mypyc_attr
++
++from sqlglot.helper import to_bool
++
++
++EC = t.TypeVar("EC", bound="ExpressionCore")
++
++
++POSITION_META_KEYS: t.Tuple[str, ...] = ("line", "col", "start", "end")
++SQLGLOT_META: str = "sqlglot.meta"
++UNITTEST: bool = "unittest" in sys.modules or "pytest" in sys.modules
++
++
++@mypyc_attr(allow_interpreted_subclasses=True)
++class ExpressionCore:
++    __slots__ = (
++        "args",
++        "parent",
++        "arg_key",
++        "index",
++        "comments",
++        "_type",
++        "_meta",
++        "_hash",
++    )
++
++    key: t.ClassVar[str]
++    arg_types: t.ClassVar[t.Dict[str, bool]] = {}
++    required_args: t.ClassVar[t.Set[str]] = set()
++    is_var_len_args: t.ClassVar[bool] = False
++    is_func: t.ClassVar[bool] = False
++    _hash_raw_args: t.ClassVar[bool] = False
++
++    def __init__(self, **args: t.Any) -> None:
++        self.args: t.Dict[str, t.Any] = args
++        self.parent: t.Optional[ExpressionCore] = None
++        self.arg_key: t.Optional[str] = None
++        self.index: t.Optional[int] = None
++        self.comments: t.Optional[t.List[str]] = None
++        self._type: t.Optional[t.Any] = None
++        self._meta: t.Optional[t.Dict[str, t.Any]] = None
++        self._hash: t.Optional[int] = None
++
++        for arg_key, value in self.args.items():
++            self._set_parent(arg_key, value)
++
++    def _set_parent(self, arg_key: str, value: t.Any, index: t.Optional[int] = None) -> None:
++        if isinstance(value, ExpressionCore):
++            value.parent = self
++            value.arg_key = arg_key
++            value.index = index
++        elif isinstance(value, list):
++            for i, v in enumerate(value):
++                if isinstance(v, ExpressionCore):
++                    v.parent = self
++                    v.arg_key = arg_key
++                    v.index = i
++
++    def iter_expressions(self: EC, reverse: bool = False) -> t.Iterator[EC]:
++        for vs in reversed(self.args.values()) if reverse else self.args.values():
++            if isinstance(vs, list):
++                for v in reversed(vs) if reverse else vs:
++                    if isinstance(v, ExpressionCore):
++                        yield t.cast(EC, v)
++            elif isinstance(vs, ExpressionCore):
++                yield t.cast(EC, vs)
++
++    def bfs(self: EC, prune: t.Optional[t.Callable[[EC], bool]] = None) -> t.Iterator[EC]:
++        queue: t.Deque[EC] = deque()
++        queue.append(self)
++        while queue:
++            node = queue.popleft()
++            yield node
++            if prune and prune(node):
++                continue
++            for v in node.iter_expressions():
++                queue.append(v)
++
++    def dfs(self: EC, prune: t.Optional[t.Callable[[EC], bool]] = None) -> t.Iterator[EC]:
++        stack: t.List[EC] = [self]
++        while stack:
++            node = stack.pop()
++            yield node
++            if prune and prune(node):
++                continue
++            for v in node.iter_expressions(reverse=True):
++                stack.append(v)
++
++    @property
++    def meta(self) -> t.Dict[str, t.Any]:
++        if self._meta is None:
++            self._meta = {}
++        return self._meta
++
++    @property
++    def this(self) -> t.Any:
++        return self.args.get("this")
++
++    @property
++    def expression(self) -> t.Any:
++        return self.args.get("expression")
++
++    @property
++    def expressions(self) -> t.List[t.Any]:
++        return self.args.get("expressions") or []
++
++    def pop_comments(self) -> t.List[str]:
++        comments = self.comments or []
++        self.comments = None
++        return comments
++
++    def append(self, arg_key: str, value: t.Any) -> None:
++        if type(self.args.get(arg_key)) is not list:
++            self.args[arg_key] = []
++        self._set_parent(arg_key, value)
++        values = self.args[arg_key]
++        if hasattr(value, "parent"):
++            value.index = len(values)
++        values.append(value)
++
++    @property
++    def depth(self) -> int:
++        if self.parent:
++            return self.parent.depth + 1
++        return 0
++
++    def find_ancestor(self, *expression_types: t.Any) -> t.Optional[t.Any]:
++        ancestor = self.parent
++        while ancestor and not isinstance(ancestor, expression_types):
++            ancestor = ancestor.parent
++        return ancestor
++
++    @property
++    def same_parent(self) -> bool:
++        return type(self.parent) is self.__class__
++
++    def root(self) -> ExpressionCore:
++        expression = self
++        while expression.parent:
++            expression = expression.parent
++        return expression
++
++    def __eq__(self, other: object) -> bool:
++        return self is other or (type(self) is type(other) and hash(self) == hash(other))
++
++    def __hash__(self) -> int:
++        if self._hash is None:
++            nodes: t.List[ExpressionCore] = []
++            queue: t.Deque[ExpressionCore] = deque()
++            queue.append(self)
++
++            while queue:
++                node = queue.popleft()
++                nodes.append(node)
++
++                for child in node.iter_expressions():
++                    if child._hash is None:
++                        queue.append(child)
++
++            for node in reversed(nodes):
++                hash_ = hash(node.key)
++
++                if node._hash_raw_args:
++                    for k, v in sorted(node.args.items()):
++                        if v:
++                            hash_ = hash((hash_, k, v))
++                else:
++                    for k, v in sorted(node.args.items()):
++                        vt = type(v)
++
++                        if vt is list:
++                            for x in v:
++                                if x is not None and x is not False:
++                                    hash_ = hash((hash_, k, x.lower() if type(x) is str else x))
++                                else:
++                                    hash_ = hash((hash_, k))
++                        elif v is not None and v is not False:
++                            hash_ = hash((hash_, k, v.lower() if vt is str else v))
++
++                node._hash = hash_
++        assert self._hash
++        return self._hash
++
++    def error_messages(self, args: t.Optional[t.Sequence] = None) -> t.List[str]:
++        errors: t.List[str] = []
++
++        if UNITTEST:
++            for k in self.args:
++                if k not in self.arg_types:
++                    raise TypeError(f"Unexpected keyword: '{k}' for {self.__class__}")
++
++        for k in self.required_args:
++            v = self.args.get(k)
++            if v is None or (isinstance(v, list) and not v):
++                errors.append(f"Required keyword: '{k}' missing for {self.__class__}")
++
++        if args and self.is_func and len(args) > len(self.arg_types) and not self.is_var_len_args:
++            errors.append(
++                f"The number of provided arguments ({len(args)}) is greater than "
++                f"the maximum number of supported arguments ({len(self.arg_types)})"
++            )
++
++        return errors
++
++    def update_positions(
++        self: EC,
++        other: t.Optional[t.Any] = None,
++        line: t.Optional[int] = None,
++        col: t.Optional[int] = None,
++        start: t.Optional[int] = None,
++        end: t.Optional[int] = None,
++    ) -> EC:
++        if other is None:
++            self.meta["line"] = line
++            self.meta["col"] = col
++            self.meta["start"] = start
++            self.meta["end"] = end
++        elif isinstance(other, ExpressionCore):
++            for k in POSITION_META_KEYS:
++                if k in other.meta:
++                    self.meta[k] = other.meta[k]
++        else:
++            # Token: has .line, .col, .start, .end attributes
++            self.meta["line"] = other.line
++            self.meta["col"] = other.col
++            self.meta["start"] = other.start
++            self.meta["end"] = other.end
++        return self
++
++    def to_py(self) -> t.Any:
++        raise ValueError(f"{self} cannot be converted to a Python object.")
++
++    def text(self, key: str) -> str:
++        field = self.args.get(key)
++        if isinstance(field, str):
++            return field
++        return ""
++
++    @property
++    def name(self) -> str:
++        return self.text("this")
++
++    @property
++    def alias(self) -> str:
++        alias = self.args.get("alias")
++        if isinstance(alias, ExpressionCore):
++            return alias.name
++        return self.text("alias")
++
++    @property
++    def alias_column_names(self) -> t.List[str]:
++        table_alias = self.args.get("alias")
++        if not table_alias:
++            return []
++        return [c.name for c in table_alias.args.get("columns") or []]
++
++    @property
++    def alias_or_name(self) -> str:
++        return self.alias or self.name
++
++    @property
++    def output_name(self) -> str:
++        return ""
++
++    def is_leaf(self) -> bool:
++        return not any(
++            (isinstance(v, ExpressionCore) or type(v) is list) and v for v in self.args.values()
++        )
++
++    def __deepcopy__(self, memo: t.Any) -> ExpressionCore:
++        root = self.__class__()
++        stack: t.List[t.Tuple[ExpressionCore, ExpressionCore]] = [(self, root)]
++
++        while stack:
++            node, copy = stack.pop()
++
++            if node.comments is not None:
++                copy.comments = deepcopy(node.comments)
++            if node._type is not None:
++                copy._type = deepcopy(node._type)
++            if node._meta is not None:
++                copy._meta = deepcopy(node._meta)
++            if node._hash is not None:
++                copy._hash = node._hash
++
++            for k, vs in node.args.items():
++                if hasattr(vs, "parent"):
++                    stack.append((vs, vs.__class__()))
++                    copy.set(k, stack[-1][-1])
++                elif type(vs) is list:
++                    copy.args[k] = []
++
++                    for v in vs:
++                        if hasattr(v, "parent"):
++                            stack.append((v, v.__class__()))
++                            copy.append(k, stack[-1][-1])
++                        else:
++                            copy.append(k, v)
++                else:
++                    copy.args[k] = vs
++
++        return root
++
++    def copy(self: EC) -> EC:
++        return deepcopy(self)
++
++    def add_comments(self, comments: t.Optional[t.List[str]] = None, prepend: bool = False) -> None:
++        if self.comments is None:
++            self.comments = []
++
++        if comments:
++            for comment in comments:
++                _, *meta = comment.split(SQLGLOT_META)
++                if meta:
++                    for kv in "".join(meta).split(","):
++                        k, *v = kv.split("=")
++                        value: t.Any = v[0].strip() if v else True
++                        self.meta[k.strip()] = to_bool(value)
++
++                if not prepend:
++                    self.comments.append(comment)
++
++            if prepend:
++                self.comments = comments + self.comments
++
++    def set(
++        self,
++        arg_key: str,
++        value: t.Any,
++        index: t.Optional[int] = None,
++        overwrite: bool = True,
++    ) -> None:
++        node: t.Optional[ExpressionCore] = self
++
++        while node and node._hash is not None:
++            node._hash = None
++            node = node.parent
++
++        if index is not None:
++            expressions = self.args.get(arg_key) or []
++
++            try:
++                if expressions[index] is None:
++                    return
++            except IndexError:
++                return
++
++            if value is None:
++                expressions.pop(index)
++                for v in expressions[index:]:
++                    v.index = v.index - 1
++                return
++
++            if isinstance(value, list):
++                expressions.pop(index)
++                expressions[index:index] = value
++            elif overwrite:
++                expressions[index] = value
++            else:
++                expressions.insert(index, value)
++
++            value = expressions
++        elif value is None:
++            self.args.pop(arg_key, None)
++            return
++
++        self.args[arg_key] = value
++        self._set_parent(arg_key, value, index)
++
++    def find(self, *expression_types: t.Any, bfs: bool = True) -> t.Optional[t.Any]:
++        return next(self.find_all(*expression_types, bfs=bfs), None)
++
++    def find_all(self, *expression_types: t.Any, bfs: bool = True) -> t.Iterator[t.Any]:
++        for expression in self.walk(bfs=bfs):
++            if isinstance(expression, expression_types):
++                yield expression
++
++    def walk(
++        self: EC,
++        bfs: bool = True,
++        prune: t.Optional[t.Callable[[EC], bool]] = None,
++    ) -> t.Iterator[EC]:
++        if bfs:
++            yield from self.bfs(prune=prune)
++        else:
++            yield from self.dfs(prune=prune)
++
++    def replace(self, expression: t.Any) -> t.Any:
++        parent = self.parent
++
++        if not parent or parent is expression:
++            return expression
++
++        key = self.arg_key
++        if not key:
++            return expression
++
++        value = parent.args.get(key)
++
++        if type(expression) is list and isinstance(value, ExpressionCore):
++            if value.parent:
++                value.parent.replace(expression)
++        else:
++            parent.set(key, expression, self.index)
++
++        if expression is not self:
++            self.parent = None
++            self.arg_key = None
++            self.index = None
++
++        return expression
++
++    def pop(self: EC) -> EC:
++        self.replace(None)
++        return self
++
++    def assert_is(self, type_: t.Any) -> t.Any:
++        if not isinstance(self, type_):
++            raise AssertionError(f"{self} is not {type_}.")
++        return self
++
++    def transform(self, fun: t.Callable, *args: t.Any, copy: bool = True, **kwargs: t.Any) -> t.Any:
++        root: t.Optional[t.Any] = None
++        new_node: t.Optional[t.Any] = None
++
++        for node in (self.copy() if copy else self).dfs(prune=lambda n: n is not new_node):
++            parent, arg_key, index = node.parent, node.arg_key, node.index
++            new_node = fun(node, *args, **kwargs)
++
++            if not root:
++                root = new_node
++            elif parent and arg_key and new_node is not node:
++                parent.set(arg_key, new_node, index)
++
++        assert root
++        return root
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 83b1d2ebfe..f1e69b1a0e 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -13,19 +13,19 @@
+ from __future__ import annotations
+ 
+ import datetime
++import logging
+ import math
+ import numbers
+ import re
+-import sys
+ import textwrap
+ import typing as t
+-from collections import deque
+ from copy import deepcopy
+ from decimal import Decimal
+ from enum import auto
+ from functools import reduce
+ 
+ from sqlglot.errors import ErrorLevel, ParseError
++from sqlglot.expression_core import ExpressionCore
+ from sqlglot.helper import (
+     AutoName,
+     camel_to_snake_case,
+@@ -34,8 +34,8 @@
+     seq_get,
+     split_num_words,
+     subclasses,
+-    to_bool,
+ )
++
+ from sqlglot.tokens import Token, TokenError
+ 
+ if t.TYPE_CHECKING:
+@@ -48,30 +48,14 @@
+     S = t.TypeVar("S", bound="SetOperation")
+ 
+ 
+-class _Expression(type):
+-    def __new__(cls, clsname, bases, attrs):
+-        klass = super().__new__(cls, clsname, bases, attrs)
+-
+-        # When an Expression class is created, its key is automatically set
+-        # to be the lowercase version of the class' name.
+-        klass.key = clsname.lower()
+-        klass.required_args = {k for k, v in klass.arg_types.items() if v}
+-
+-        # This is so that docstrings are not inherited in pdoc
+-        klass.__doc__ = klass.__doc__ or ""
++logger = logging.getLogger("sqlglot")
+ 
+-        return klass
+-
+-
+-SQLGLOT_META = "sqlglot.meta"
+ SQLGLOT_ANONYMOUS = "sqlglot.anonymous"
+ TABLE_PARTS = ("this", "db", "catalog")
+ COLUMN_PARTS = ("this", "table", "db", "catalog")
+-POSITION_META_KEYS = ("line", "col", "start", "end")
+-UNITTEST = "unittest" in sys.modules or "pytest" in sys.modules
+ 
+ 
+-class Expression(metaclass=_Expression):
++class Expression(ExpressionCore):
+     """
+     The base class for all expressions in a syntax tree. Each Expression encapsulates any necessary
+     context, such as its child expressions, their names (arg keys), and whether a given child expression
+@@ -103,91 +87,26 @@ class Expression(metaclass=_Expression):
+         args: a mapping used for retrieving the arguments of an expression, given their arg keys.
+     """
+ 
++    __slots__ = ()
++
+     key = "expression"
+     arg_types = {"this": True}
+     required_args = {"this"}
+-    __slots__ = ("args", "parent", "arg_key", "index", "comments", "_type", "_meta", "_hash")
+-
+-    def __init__(self, **args: t.Any):
+-        self.args: t.Dict[str, t.Any] = args
+-        self.parent: t.Optional[Expression] = None
+-        self.arg_key: t.Optional[str] = None
+-        self.index: t.Optional[int] = None
+-        self.comments: t.Optional[t.List[str]] = None
+-        self._type: t.Optional[DataType] = None
+-        self._meta: t.Optional[t.Dict[str, t.Any]] = None
+-        self._hash: t.Optional[int] = None
+-
+-        for arg_key, value in self.args.items():
+-            self._set_parent(arg_key, value)
+-
+-    def __eq__(self, other) -> bool:
+-        return self is other or (type(self) is type(other) and hash(self) == hash(other))
+-
+-    def __hash__(self) -> int:
+-        if self._hash is None:
+-            nodes = []
+-            queue = deque([self])
+-
+-            while queue:
+-                node = queue.popleft()
+-                nodes.append(node)
+-
+-                for v in node.iter_expressions():
+-                    if v._hash is None:
+-                        queue.append(v)
+-
+-            for node in reversed(nodes):
+-                hash_ = hash(node.key)
+-                t = type(node)
+-
+-                if t is Literal or t is Identifier:
+-                    for k, v in sorted(node.args.items()):
+-                        if v:
+-                            hash_ = hash((hash_, k, v))
+-                else:
+-                    for k, v in sorted(node.args.items()):
+-                        t = type(v)
+-
+-                        if t is list:
+-                            for x in v:
+-                                if x is not None and x is not False:
+-                                    hash_ = hash((hash_, k, x.lower() if type(x) is str else x))
+-                                else:
+-                                    hash_ = hash((hash_, k))
+-                        elif v is not None and v is not False:
+-                            hash_ = hash((hash_, k, v.lower() if t is str else v))
+-
+-                node._hash = hash_
+-        assert self._hash
+-        return self._hash
++    parent: t.Optional[Expression]
++
++    @classmethod
++    def __init_subclass__(cls, **kwargs: t.Any) -> None:
++        super().__init_subclass__(**kwargs)
++        cls.key = cls.__name__.lower()
++        cls.required_args = {k for k, v in cls.arg_types.items() if v}
++        # This is so that docstrings are not inherited in pdoc
++        cls.__doc__ = cls.__doc__ or ""
+ 
+     def __reduce__(self) -> t.Tuple[t.Callable, t.Tuple[t.List[t.Dict[str, t.Any]]]]:
+         from sqlglot.serde import dump, load
+ 
+         return (load, (dump(self),))
+ 
+-    @property
+-    def this(self) -> t.Any:
+-        """
+-        Retrieves the argument with key "this".
+-        """
+-        return self.args.get("this")
+-
+-    @property
+-    def expression(self) -> t.Any:
+-        """
+-        Retrieves the argument with key "expression".
+-        """
+-        return self.args.get("expression")
+-
+-    @property
+-    def expressions(self) -> t.List[t.Any]:
+-        """
+-        Retrieves the argument with key "expressions".
+-        """
+-        return self.args.get("expressions") or []
+-
+     def text(self, key) -> str:
+         """
+         Returns a textual representation of the argument corresponding to "key". This can only be used
+@@ -202,6 +121,10 @@ def text(self, key) -> str:
+             return field.name
+         return ""
+ 
++    @property
++    def name(self) -> str:
++        return self.text("this")
++
+     @property
+     def is_string(self) -> bool:
+         """
+@@ -218,12 +141,6 @@ def is_number(self) -> bool:
+             isinstance(self, Neg) and self.this.is_number
+         )
+ 
+-    def to_py(self) -> t.Any:
+-        """
+-        Returns a Python object equivalent of the SQL node.
+-        """
+-        raise ValueError(f"{self} cannot be converted to a Python object.")
+-
+     @property
+     def is_int(self) -> bool:
+         """
+@@ -236,48 +153,6 @@ def is_star(self) -> bool:
+         """Checks whether an expression is a star."""
+         return isinstance(self, Star) or (isinstance(self, Column) and isinstance(self.this, Star))
+ 
+-    @property
+-    def alias(self) -> str:
+-        """
+-        Returns the alias of the expression, or an empty string if it's not aliased.
+-        """
+-        if isinstance(self.args.get("alias"), TableAlias):
+-            return self.args["alias"].name
+-        return self.text("alias")
+-
+-    @property
+-    def alias_column_names(self) -> t.List[str]:
+-        table_alias = self.args.get("alias")
+-        if not table_alias:
+-            return []
+-        return [c.name for c in table_alias.args.get("columns") or []]
+-
+-    @property
+-    def name(self) -> str:
+-        return self.text("this")
+-
+-    @property
+-    def alias_or_name(self) -> str:
+-        return self.alias or self.name
+-
+-    @property
+-    def output_name(self) -> str:
+-        """
+-        Name of the output column if this expression is a selection.
+-
+-        If the Expression has no output name, an empty string is returned.
+-
+-        Example:
+-            >>> from sqlglot import parse_one
+-            >>> parse_one("SELECT a").expressions[0].output_name
+-            'a'
+-            >>> parse_one("SELECT b AS c").expressions[0].output_name
+-            'c'
+-            >>> parse_one("SELECT 1 + 2").expressions[0].output_name
+-            ''
+-        """
+-        return ""
+-
+     @property
+     def type(self) -> t.Optional[DataType]:
+         if isinstance(self, Cast):
+@@ -293,221 +168,6 @@ def type(self, dtype: t.Optional[DataType | DataType.Type | str]) -> None:
+     def is_type(self, *dtypes) -> bool:
+         return self.type is not None and self.type.is_type(*dtypes)
+ 
+-    def is_leaf(self) -> bool:
+-        return not any(isinstance(v, (Expression, list)) and v for v in self.args.values())
+-
+-    @property
+-    def meta(self) -> t.Dict[str, t.Any]:
+-        if self._meta is None:
+-            self._meta = {}
+-        return self._meta
+-
+-    def __deepcopy__(self, memo):
+-        root = self.__class__()
+-        stack = [(self, root)]
+-
+-        while stack:
+-            node, copy = stack.pop()
+-
+-            if node.comments is not None:
+-                copy.comments = deepcopy(node.comments)
+-            if node._type is not None:
+-                copy._type = deepcopy(node._type)
+-            if node._meta is not None:
+-                copy._meta = deepcopy(node._meta)
+-            if node._hash is not None:
+-                copy._hash = node._hash
+-
+-            for k, vs in node.args.items():
+-                if hasattr(vs, "parent"):
+-                    stack.append((vs, vs.__class__()))
+-                    copy.set(k, stack[-1][-1])
+-                elif type(vs) is list:
+-                    copy.args[k] = []
+-
+-                    for v in vs:
+-                        if hasattr(v, "parent"):
+-                            stack.append((v, v.__class__()))
+-                            copy.append(k, stack[-1][-1])
+-                        else:
+-                            copy.append(k, v)
+-                else:
+-                    copy.args[k] = vs
+-
+-        return root
+-
+-    def copy(self) -> Self:
+-        """
+-        Returns a deep copy of the expression.
+-        """
+-        return deepcopy(self)
+-
+-    def add_comments(self, comments: t.Optional[t.List[str]] = None, prepend: bool = False) -> None:
+-        if self.comments is None:
+-            self.comments = []
+-
+-        if comments:
+-            for comment in comments:
+-                _, *meta = comment.split(SQLGLOT_META)
+-                if meta:
+-                    for kv in "".join(meta).split(","):
+-                        k, *v = kv.split("=")
+-                        value = v[0].strip() if v else True
+-                        self.meta[k.strip()] = to_bool(value)
+-
+-                if not prepend:
+-                    self.comments.append(comment)
+-
+-            if prepend:
+-                self.comments = comments + self.comments
+-
+-    def pop_comments(self) -> t.List[str]:
+-        comments = self.comments or []
+-        self.comments = None
+-        return comments
+-
+-    def append(self, arg_key: str, value: t.Any) -> None:
+-        """
+-        Appends value to arg_key if it's a list or sets it as a new list.
+-
+-        Args:
+-            arg_key (str): name of the list expression arg
+-            value (Any): value to append to the list
+-        """
+-        if type(self.args.get(arg_key)) is not list:
+-            self.args[arg_key] = []
+-        self._set_parent(arg_key, value)
+-        values = self.args[arg_key]
+-        if hasattr(value, "parent"):
+-            value.index = len(values)
+-        values.append(value)
+-
+-    def set(
+-        self,
+-        arg_key: str,
+-        value: t.Any,
+-        index: t.Optional[int] = None,
+-        overwrite: bool = True,
+-    ) -> None:
+-        """
+-        Sets arg_key to value.
+-
+-        Args:
+-            arg_key: name of the expression arg.
+-            value: value to set the arg to.
+-            index: if the arg is a list, this specifies what position to add the value in it.
+-            overwrite: assuming an index is given, this determines whether to overwrite the
+-                list entry instead of only inserting a new value (i.e., like list.insert).
+-        """
+-        expression: t.Optional[Expression] = self
+-
+-        while expression and expression._hash is not None:
+-            expression._hash = None
+-            expression = expression.parent
+-
+-        if index is not None:
+-            expressions = self.args.get(arg_key) or []
+-
+-            if seq_get(expressions, index) is None:
+-                return
+-            if value is None:
+-                expressions.pop(index)
+-                for v in expressions[index:]:
+-                    v.index = v.index - 1
+-                return
+-
+-            if isinstance(value, list):
+-                expressions.pop(index)
+-                expressions[index:index] = value
+-            elif overwrite:
+-                expressions[index] = value
+-            else:
+-                expressions.insert(index, value)
+-
+-            value = expressions
+-        elif value is None:
+-            self.args.pop(arg_key, None)
+-            return
+-
+-        self.args[arg_key] = value
+-        self._set_parent(arg_key, value, index)
+-
+-    def _set_parent(self, arg_key: str, value: t.Any, index: t.Optional[int] = None) -> None:
+-        if hasattr(value, "parent"):
+-            value.parent = self
+-            value.arg_key = arg_key
+-            value.index = index
+-        elif type(value) is list:
+-            for index, v in enumerate(value):
+-                if hasattr(v, "parent"):
+-                    v.parent = self
+-                    v.arg_key = arg_key
+-                    v.index = index
+-
+-    @property
+-    def depth(self) -> int:
+-        """
+-        Returns the depth of this tree.
+-        """
+-        if self.parent:
+-            return self.parent.depth + 1
+-        return 0
+-
+-    def iter_expressions(self, reverse: bool = False) -> t.Iterator[Expression]:
+-        """Yields the key and expression for all arguments, exploding list args."""
+-        for vs in reversed(self.args.values()) if reverse else self.args.values():  # type: ignore
+-            if type(vs) is list:
+-                for v in reversed(vs) if reverse else vs:  # type: ignore
+-                    if hasattr(v, "parent"):
+-                        yield v
+-            elif hasattr(vs, "parent"):
+-                yield vs
+-
+-    def find(self, *expression_types: t.Type[E], bfs: bool = True) -> t.Optional[E]:
+-        """
+-        Returns the first node in this tree which matches at least one of
+-        the specified types.
+-
+-        Args:
+-            expression_types: the expression type(s) to match.
+-            bfs: whether to search the AST using the BFS algorithm (DFS is used if false).
+-
+-        Returns:
+-            The node which matches the criteria or None if no such node was found.
+-        """
+-        return next(self.find_all(*expression_types, bfs=bfs), None)
+-
+-    def find_all(self, *expression_types: t.Type[E], bfs: bool = True) -> t.Iterator[E]:
+-        """
+-        Returns a generator object which visits all nodes in this tree and only
+-        yields those that match at least one of the specified expression types.
+-
+-        Args:
+-            expression_types: the expression type(s) to match.
+-            bfs: whether to search the AST using the BFS algorithm (DFS is used if false).
+-
+-        Returns:
+-            The generator object.
+-        """
+-        for expression in self.walk(bfs=bfs):
+-            if isinstance(expression, expression_types):
+-                yield expression
+-
+-    def find_ancestor(self, *expression_types: t.Type[E]) -> t.Optional[E]:
+-        """
+-        Returns a nearest parent matching expression_types.
+-
+-        Args:
+-            expression_types: the expression type(s) to match.
+-
+-        Returns:
+-            The parent node.
+-        """
+-        ancestor = self.parent
+-        while ancestor and not isinstance(ancestor, expression_types):
+-            ancestor = ancestor.parent
+-        return ancestor  # type: ignore
+-
+     @property
+     def parent_select(self) -> t.Optional[Select]:
+         """
+@@ -515,86 +175,6 @@ def parent_select(self) -> t.Optional[Select]:
+         """
+         return self.find_ancestor(Select)
+ 
+-    @property
+-    def same_parent(self) -> bool:
+-        """Returns if the parent is the same class as itself."""
+-        return type(self.parent) is self.__class__
+-
+-    def root(self) -> Expression:
+-        """
+-        Returns the root expression of this tree.
+-        """
+-        expression = self
+-        while expression.parent:
+-            expression = expression.parent
+-        return expression
+-
+-    def walk(
+-        self, bfs: bool = True, prune: t.Optional[t.Callable[[Expression], bool]] = None
+-    ) -> t.Iterator[Expression]:
+-        """
+-        Returns a generator object which visits all nodes in this tree.
+-
+-        Args:
+-            bfs: if set to True the BFS traversal order will be applied,
+-                otherwise the DFS traversal will be used instead.
+-            prune: callable that returns True if the generator should stop traversing
+-                this branch of the tree.
+-
+-        Returns:
+-            the generator object.
+-        """
+-        if bfs:
+-            yield from self.bfs(prune=prune)
+-        else:
+-            yield from self.dfs(prune=prune)
+-
+-    def dfs(
+-        self, prune: t.Optional[t.Callable[[Expression], bool]] = None
+-    ) -> t.Iterator[Expression]:
+-        """
+-        Returns a generator object which visits all nodes in this tree in
+-        the DFS (Depth-first) order.
+-
+-        Returns:
+-            The generator object.
+-        """
+-        stack = [self]
+-
+-        while stack:
+-            node = stack.pop()
+-
+-            yield node
+-
+-            if prune and prune(node):
+-                continue
+-
+-            for v in node.iter_expressions(reverse=True):
+-                stack.append(v)
+-
+-    def bfs(
+-        self, prune: t.Optional[t.Callable[[Expression], bool]] = None
+-    ) -> t.Iterator[Expression]:
+-        """
+-        Returns a generator object which visits all nodes in this tree in
+-        the BFS (Breadth-first) order.
+-
+-        Returns:
+-            The generator object.
+-        """
+-        queue = deque([self])
+-
+-        while queue:
+-            node = queue.popleft()
+-
+-            yield node
+-
+-            if prune and prune(node):
+-                continue
+-
+-            for v in node.iter_expressions():
+-                queue.append(v)
+-
+     def unnest(self):
+         """
+         Returns the first non parenthesis child or self.
+@@ -624,7 +204,7 @@ def flatten(self, unnest=True):
+ 
+         A AND B AND C -> [A, B, C]
+         """
+-        for node in self.dfs(prune=lambda n: n.parent and type(n) is not self.__class__):
++        for node in self.dfs(prune=lambda n: bool(n.parent and type(n) is not self.__class__)):
+             if type(node) is not self.__class__:
+                 yield node.unnest() if unnest and not isinstance(node, Subquery) else node
+ 
+@@ -656,147 +236,6 @@ def sql(self, dialect: DialectType = None, **opts) -> str:
+ 
+         return Dialect.get_or_raise(dialect).generate(self, **opts)
+ 
+-    def transform(self, fun: t.Callable, *args: t.Any, copy: bool = True, **kwargs) -> Expression:
+-        """
+-        Visits all tree nodes (excluding already transformed ones)
+-        and applies the given transformation function to each node.
+-
+-        Args:
+-            fun: a function which takes a node as an argument and returns a
+-                new transformed node or the same node without modifications. If the function
+-                returns None, then the corresponding node will be removed from the syntax tree.
+-            copy: if set to True a new tree instance is constructed, otherwise the tree is
+-                modified in place.
+-
+-        Returns:
+-            The transformed tree.
+-        """
+-        root = None
+-        new_node = None
+-
+-        for node in (self.copy() if copy else self).dfs(prune=lambda n: n is not new_node):
+-            parent, arg_key, index = node.parent, node.arg_key, node.index
+-            new_node = fun(node, *args, **kwargs)
+-
+-            if not root:
+-                root = new_node
+-            elif parent and arg_key and new_node is not node:
+-                parent.set(arg_key, new_node, index)
+-
+-        assert root
+-        return root.assert_is(Expression)
+-
+-    @t.overload
+-    def replace(self, expression: E) -> E: ...
+-
+-    @t.overload
+-    def replace(self, expression: None) -> None: ...
+-
+-    def replace(self, expression):
+-        """
+-        Swap out this expression with a new expression.
+-
+-        For example::
+-
+-            >>> tree = Select().select("x").from_("tbl")
+-            >>> tree.find(Column).replace(column("y"))
+-            Column(
+-              this=Identifier(this=y, quoted=False))
+-            >>> tree.sql()
+-            'SELECT y FROM tbl'
+-
+-        Args:
+-            expression: new node
+-
+-        Returns:
+-            The new expression or expressions.
+-        """
+-        parent = self.parent
+-
+-        if not parent or parent is expression:
+-            return expression
+-
+-        key = self.arg_key
+-        value = parent.args.get(key)
+-
+-        if type(expression) is list and isinstance(value, Expression):
+-            # We are trying to replace an Expression with a list, so it's assumed that
+-            # the intention was to really replace the parent of this expression.
+-            value.parent.replace(expression)
+-        else:
+-            parent.set(key, expression, self.index)
+-
+-        if expression is not self:
+-            self.parent = None
+-            self.arg_key = None
+-            self.index = None
+-
+-        return expression
+-
+-    def pop(self: E) -> E:
+-        """
+-        Remove this expression from its AST.
+-
+-        Returns:
+-            The popped expression.
+-        """
+-        self.replace(None)
+-        return self
+-
+-    def assert_is(self, type_: t.Type[E]) -> E:
+-        """
+-        Assert that this `Expression` is an instance of `type_`.
+-
+-        If it is NOT an instance of `type_`, this raises an assertion error.
+-        Otherwise, this returns this expression.
+-
+-        Examples:
+-            This is useful for type security in chained expressions:
+-
+-            >>> import sqlglot
+-            >>> sqlglot.parse_one("SELECT x from y").assert_is(Select).select("z").sql()
+-            'SELECT x, z FROM y'
+-        """
+-        if not isinstance(self, type_):
+-            raise AssertionError(f"{self} is not {type_}.")
+-        return self
+-
+-    def error_messages(self, args: t.Optional[t.Sequence] = None) -> t.List[str]:
+-        """
+-        Checks if this expression is valid (e.g. all mandatory args are set).
+-
+-        Args:
+-            args: a sequence of values that were used to instantiate a Func expression. This is used
+-                to check that the provided arguments don't exceed the function argument limit.
+-
+-        Returns:
+-            A list of error messages for all possible errors that were found.
+-        """
+-        errors: t.List[str] = []
+-
+-        if UNITTEST:
+-            for k in self.args:
+-                if k not in self.arg_types:
+-                    raise TypeError(f"Unexpected keyword: '{k}' for {self.__class__}")
+-
+-        for k in self.required_args:
+-            v = self.args.get(k)
+-            if v is None or (type(v) is list and not v):
+-                errors.append(f"Required keyword: '{k}' missing for {self.__class__}")
+-
+-        if (
+-            args
+-            and isinstance(self, Func)
+-            and len(args) > len(self.arg_types)
+-            and not self.is_var_len_args
+-        ):
+-            errors.append(
+-                f"The number of provided arguments ({len(args)}) is greater than "
+-                f"the maximum number of supported arguments ({len(self.arg_types)})"
+-            )
+-
+-        return errors
+-
+     def dump(self):
+         """
+         Dump this Expression to a JSON-serializable dict.
+@@ -890,43 +329,6 @@ def not_(self, copy: bool = True):
+         """
+         return not_(self, copy=copy)
+ 
+-    def update_positions(
+-        self: E,
+-        other: t.Optional[Token | Expression] = None,
+-        line: t.Optional[int] = None,
+-        col: t.Optional[int] = None,
+-        start: t.Optional[int] = None,
+-        end: t.Optional[int] = None,
+-    ) -> E:
+-        """
+-        Update this expression with positions from a token or other expression.
+-
+-        Args:
+-            other: a token or expression to update this expression with.
+-            line: the line number to use if other is None
+-            col: column number
+-            start: start char index
+-            end:  end char index
+-
+-        Returns:
+-            The updated expression.
+-        """
+-        if other is None:
+-            self.meta["line"] = line
+-            self.meta["col"] = col
+-            self.meta["start"] = start
+-            self.meta["end"] = end
+-        elif hasattr(other, "meta"):
+-            for k in POSITION_META_KEYS:
+-                if k in other.meta:
+-                    self.meta[k] = other.meta[k]
+-        else:
+-            self.meta["line"] = other.line
+-            self.meta["col"] = other.col
+-            self.meta["start"] = other.start
+-            self.meta["end"] = other.end
+-        return self
+-
+     def as_(
+         self,
+         alias: str | Identifier,
+@@ -2143,7 +1545,7 @@ class UniqueColumnConstraint(ColumnConstraintKind):
+ 
+ 
+ class UppercaseColumnConstraint(ColumnConstraintKind):
+-    arg_types: t.Dict[str, t.Any] = {}
++    arg_types: t.ClassVar[t.Dict[str, t.Any]] = {}
+ 
+ 
+ # https://docs.risingwave.com/processing/watermarks#syntax
+@@ -2396,6 +1798,7 @@ class JoinHint(Expression):
+ 
+ class Identifier(Expression):
+     arg_types = {"this": True, "quoted": False, "global_": False, "temporary": False}
++    _hash_raw_args = True
+ 
+     @property
+     def quoted(self) -> bool:
+@@ -2636,6 +2039,7 @@ class LimitOptions(Expression):
+ 
+ class Literal(Condition):
+     arg_types = {"this": True, "is_string": True}
++    _hash_raw_args = True
+ 
+     @classmethod
+     def number(cls, number) -> Literal | Neg:
+@@ -4686,7 +4090,7 @@ def name(self) -> str:
+ 
+ 
+ class Null(Condition):
+-    arg_types: t.Dict[str, t.Any] = {}
++    arg_types: t.ClassVar[t.Dict[str, t.Any]] = {}
+ 
+     @property
+     def name(self) -> str:
+@@ -5589,6 +4993,7 @@ class Func(Condition):
+     """
+ 
+     is_var_len_args = False
++    is_func = True
+ 
+     @classmethod
+     def from_arg_list(cls, args):
+@@ -10503,3 +9908,37 @@ def null() -> Null:
+     Boolean,
+     Null,
+ )
++
++
++def apply_index_offset(
++    this: Expression,
++    expressions: t.List[E],
++    offset: int,
++    dialect: DialectType = None,
++) -> t.List[E]:
++    if not offset or len(expressions) != 1:
++        return expressions
++
++    expression = expressions[0]
++
++    from sqlglot.optimizer.annotate_types import annotate_types
++    from sqlglot.optimizer.simplify import simplify
++
++    if not this.type:
++        annotate_types(this, dialect=dialect)
++
++    if t.cast(DataType, this.type).this not in (
++        DataType.Type.UNKNOWN,
++        DataType.Type.ARRAY,
++    ):
++        return expressions
++
++    if not expression.type:
++        annotate_types(expression, dialect=dialect)
++
++    if t.cast(DataType, expression.type).this in DataType.INTEGER_TYPES:
++        logger.info("Applying array index offset (%s)", offset)
++        expression = simplify(expression + offset)
++        return [expression]
++
++    return expressions
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index fbd23cd690..74e5e1734c 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -8,7 +8,8 @@
+ 
+ from sqlglot import exp
+ from sqlglot.errors import ErrorLevel, UnsupportedError, concat_messages
+-from sqlglot.helper import apply_index_offset, csv, name_sequence, seq_get
++from sqlglot.expressions import apply_index_offset
++from sqlglot.helper import csv, name_sequence, seq_get
+ from sqlglot.jsonpath import ALL_JSON_PATH_PARTS, JSON_PATH_PART_TRANSFORMS
+ from sqlglot.time import format_time
+ from sqlglot.tokens import TokenType
+diff --git a/sqlglot/helper.py b/sqlglot/helper.py
+index 01d7994c95..fe74318f07 100644
+--- a/sqlglot/helper.py
++++ b/sqlglot/helper.py
+@@ -12,11 +12,11 @@
+ from enum import Enum
+ from itertools import count
+ 
++T = t.TypeVar("T")
++E = t.TypeVar("E")
++
+ if t.TYPE_CHECKING:
+-    from sqlglot import exp
+-    from sqlglot._typing import A, E, T
+-    from sqlglot.dialects.dialect import DialectType
+-    from sqlglot.expressions import Expression
++    from sqlglot.expression_core import ExpressionCore
+ 
+ 
+ CAMEL_CASE_PATTERN = re.compile("(?<!^)(?=[A-Z])")
+@@ -152,60 +152,12 @@ def subclasses(
+     ]
+ 
+ 
+-def apply_index_offset(
+-    this: exp.Expression,
+-    expressions: t.List[E],
+-    offset: int,
+-    dialect: DialectType = None,
+-) -> t.List[E]:
+-    """
+-    Applies an offset to a given integer literal expression.
+-
+-    Args:
+-        this: The target of the index.
+-        expressions: The expression the offset will be applied to, wrapped in a list.
+-        offset: The offset that will be applied.
+-        dialect: the dialect of interest.
+-
+-    Returns:
+-        The original expression with the offset applied to it, wrapped in a list. If the provided
+-        `expressions` argument contains more than one expression, it's returned unaffected.
+-    """
+-    if not offset or len(expressions) != 1:
+-        return expressions
+-
+-    expression = expressions[0]
+-
+-    from sqlglot import exp
+-    from sqlglot.optimizer.annotate_types import annotate_types
+-    from sqlglot.optimizer.simplify import simplify
+-
+-    if not this.type:
+-        annotate_types(this, dialect=dialect)
+-
+-    if t.cast(exp.DataType, this.type).this not in (
+-        exp.DataType.Type.UNKNOWN,
+-        exp.DataType.Type.ARRAY,
+-    ):
+-        return expressions
+-
+-    if not expression.type:
+-        annotate_types(expression, dialect=dialect)
+-
+-    if t.cast(exp.DataType, expression.type).this in exp.DataType.INTEGER_TYPES:
+-        logger.info("Applying array index offset (%s)", offset)
+-        expression = simplify(expression + offset)
+-        return [expression]
+-
+-    return expressions
+-
+-
+ def camel_to_snake_case(name: str) -> str:
+     """Converts `name` from camelCase to snake_case and returns the result."""
+     return CAMEL_CASE_PATTERN.sub("_", name).upper()
+ 
+ 
+-def while_changing(expression: Expression, func: t.Callable[[Expression], E]) -> E:
++def while_changing(expression: E, func: t.Callable[[E], E]) -> E:
+     """
+     Applies a transformation to a given expression until a fix point is reached.
+ 
+@@ -360,9 +312,9 @@ def is_iterable(value: t.Any) -> bool:
+     Returns:
+         A `bool` value indicating if it is an iterable.
+     """
+-    from sqlglot import Expression
++    from sqlglot.expression_core import ExpressionCore
+ 
+-    return hasattr(value, "__iter__") and not isinstance(value, (str, bytes, Expression))
++    return hasattr(value, "__iter__") and not isinstance(value, (str, bytes, ExpressionCore))
+ 
+ 
+ def flatten(values: t.Iterable[t.Iterable[t.Any] | t.Any]) -> t.Iterator[t.Any]:
+@@ -389,7 +341,7 @@ def flatten(values: t.Iterable[t.Iterable[t.Any] | t.Any]) -> t.Iterator[t.Any]:
+             yield value
+ 
+ 
+-def dict_depth(d: t.Dict) -> int:
++def dict_depth(d: t.Any) -> int:
+     """
+     Get the nesting depth of a dictionary.
+ 
+@@ -434,7 +386,7 @@ def to_bool(value: t.Optional[str | bool]) -> t.Optional[str | bool]:
+     return value
+ 
+ 
+-def merge_ranges(ranges: t.List[t.Tuple[A, A]]) -> t.List[t.Tuple[A, A]]:
++def merge_ranges(ranges: t.List[t.Tuple[t.Any, t.Any]]) -> t.List[t.Tuple[t.Any, t.Any]]:
+     """
+     Merges a sequence of ranges, represented as tuples (low, high) whose values
+     belong to some totally-ordered set.
+@@ -481,7 +433,7 @@ def is_iso_datetime(text: str) -> bool:
+ DATE_UNITS = {"day", "week", "month", "quarter", "year", "year_month"}
+ 
+ 
+-def is_date_unit(expression: t.Optional[exp.Expression]) -> bool:
++def is_date_unit(expression: t.Optional[ExpressionCore]) -> bool:
+     return expression is not None and expression.name.lower() in DATE_UNITS
+ 
+ 
+diff --git a/sqlglot/optimizer/normalize_identifiers.py b/sqlglot/optimizer/normalize_identifiers.py
+index 24ccb39cc4..b465cc8c6f 100644
+--- a/sqlglot/optimizer/normalize_identifiers.py
++++ b/sqlglot/optimizer/normalize_identifiers.py
+@@ -63,7 +63,7 @@ def normalize_identifiers(expression, dialect=None, store_original_column_identi
+     if isinstance(expression, str):
+         expression = exp.parse_identifier(expression, dialect=dialect)
+ 
+-    for node in expression.walk(prune=lambda n: n.meta.get("case_sensitive")):
++    for node in expression.walk(prune=lambda n: bool(n.meta.get("case_sensitive"))):
+         if not node.meta.get("case_sensitive"):
+             if store_original_column_identifiers and isinstance(node, exp.Column):
+                 # TODO: This does not handle non-column cases, e.g PARSE_JSON(...).key
+diff --git a/sqlglot/optimizer/scope.py b/sqlglot/optimizer/scope.py
+index f912cf0e2a..557b1308e4 100644
+--- a/sqlglot/optimizer/scope.py
++++ b/sqlglot/optimizer/scope.py
+@@ -887,7 +887,7 @@ def walk_in_scope(expression, bfs=True, prune=None):
+     crossed_scope_boundary = False
+ 
+     for node in expression.walk(
+-        bfs=bfs, prune=lambda n: crossed_scope_boundary or (prune and prune(n))
++        bfs=bfs, prune=lambda n: bool(crossed_scope_boundary or (prune and prune(n)))
+     ):
+         crossed_scope_boundary = False
+ 
+diff --git a/sqlglot/optimizer/simplify.py b/sqlglot/optimizer/simplify.py
+index 1546c2e69e..f62655a5f9 100644
+--- a/sqlglot/optimizer/simplify.py
++++ b/sqlglot/optimizer/simplify.py
+@@ -586,7 +586,7 @@ def simplify(
+                 group.meta[FINAL] = True
+ 
+                 for s in node.selects:
+-                    for n in s.walk(FINAL):
++                    for n in s.walk():
+                         if n in groups:
+                             s.meta[FINAL] = True
+                             break
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 19c3ad783b..4f0bbba0ae 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -15,7 +15,8 @@
+     highlight_sql,
+     merge_errors,
+ )
+-from sqlglot.helper import apply_index_offset, ensure_list, seq_get
++from sqlglot.expressions import apply_index_offset
++from sqlglot.helper import ensure_list, seq_get
+ from sqlglot.time import format_time
+ from sqlglot.tokens import Token, Tokenizer, TokenType
+ from sqlglot.trie import TrieResult, in_trie, new_trie
+@@ -1755,7 +1756,7 @@ def reset(self):
+         self._pipe_cte_counter = 0
+ 
+         # State necessary for parsing imperative SQL
+-        self._chunks: t.List[t.List[Token]] = []
++        self._chunks = []
+         self._chunk_index = 0
+ 
+     def parse(self, raw_tokens: t.List[Token], sql: str) -> t.List[t.Optional[exp.Expression]]:
+diff --git a/sqlglot/planner.py b/sqlglot/planner.py
+index ebd34fe1e1..46765d779b 100644
+--- a/sqlglot/planner.py
++++ b/sqlglot/planner.py
+@@ -122,7 +122,9 @@ def from_expression(
+             join.add_dependency(step)
+             step = join
+ 
+-        projections = []  # final selects in this chain of steps representing a select
++        projections: t.List[
++            exp.Expression
++        ] = []  # final selects in this chain of steps representing a select
+         operands = {}  # intermediate computations of agg funcs eg x + 1 in SUM(x + 1)
+         aggregations = {}
+         next_operand_name = name_sequence("_a_")
+diff --git a/sqlglot/tokens.py b/sqlglot/tokens.py
+index f89713b544..035cafe2b8 100644
+--- a/sqlglot/tokens.py
++++ b/sqlglot/tokens.py
+@@ -28,65 +28,94 @@
+ _TOKEN_TYPE_TO_INDEX = {token_type: i for i, token_type in enumerate(_ALL_TOKEN_TYPES)}
+ 
+ 
+-class _Tokenizer(type):
+-    def __new__(cls, clsname, bases, attrs):
+-        klass = super().__new__(cls, clsname, bases, attrs)
+-
+-        def _convert_quotes(arr: t.List[str | t.Tuple[str, str]]) -> t.Dict[str, str]:
+-            return dict(
+-                (item, item) if isinstance(item, str) else (item[0], item[1]) for item in arr
+-            )
+-
+-        def _quotes_to_format(
+-            token_type: TokenType, arr: t.List[str | t.Tuple[str, str]]
+-        ) -> t.Dict[str, t.Tuple[str, TokenType]]:
+-            return {k: (v, token_type) for k, v in _convert_quotes(arr).items()}
+-
+-        klass._QUOTES = _convert_quotes(klass.QUOTES)
+-        klass._IDENTIFIERS = _convert_quotes(klass.IDENTIFIERS)
+-
+-        klass._FORMAT_STRINGS = {
++def _convert_quotes(arr: t.List[str | t.Tuple[str, str]]) -> t.Dict[str, str]:
++    return dict((item, item) if isinstance(item, str) else (item[0], item[1]) for item in arr)
++
++
++def _quotes_to_format(
++    token_type: TokenType, arr: t.List[str | t.Tuple[str, str]]
++) -> t.Dict[str, t.Tuple[str, TokenType]]:
++    return {k: (v, token_type) for k, v in _convert_quotes(arr).items()}
++
++
++class _TokenizerBase:
++    QUOTES: t.ClassVar[t.List[t.Tuple[str, str] | str]]
++    IDENTIFIERS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
++    BIT_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
++    BYTE_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
++    HEX_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
++    RAW_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
++    HEREDOC_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
++    UNICODE_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
++    STRING_ESCAPES: t.ClassVar[t.List[str]]
++    BYTE_STRING_ESCAPES: t.ClassVar[t.List[str]]
++    ESCAPE_FOLLOW_CHARS: t.ClassVar[t.List[str]]
++    IDENTIFIER_ESCAPES: t.ClassVar[t.List[str]]
++    HINT_START: t.ClassVar[str]
++    KEYWORDS: t.ClassVar[t.Dict[str, TokenType]]
++    SINGLE_TOKENS: t.ClassVar[t.Dict[str, TokenType]]
++    NUMERIC_LITERALS: t.ClassVar[t.Dict[str, str]]
++    VAR_SINGLE_TOKENS: t.ClassVar[t.Set[str]]
++    COMMANDS: t.ClassVar[t.Set[TokenType]]
++    COMMAND_PREFIX_TOKENS: t.ClassVar[t.Set[TokenType]]
++    HEREDOC_TAG_IS_IDENTIFIER: t.ClassVar[bool]
++    STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS: t.ClassVar[bool]
++    NESTED_COMMENTS: t.ClassVar[bool]
++    TOKENS_PRECEDING_HINT: t.ClassVar[t.Set[TokenType]]
++    HEREDOC_STRING_ALTERNATIVE: t.ClassVar[TokenType]
++    COMMENTS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
++    _QUOTES: t.ClassVar[t.Dict[str, str]]
++    _IDENTIFIERS: t.ClassVar[t.Dict[str, str]]
++    _FORMAT_STRINGS: t.ClassVar[t.Dict[str, t.Tuple[str, TokenType]]]
++    _STRING_ESCAPES: t.ClassVar[t.Set[str]]
++    _BYTE_STRING_ESCAPES: t.ClassVar[t.Set[str]]
++    _ESCAPE_FOLLOW_CHARS: t.ClassVar[t.Set[str]]
++    _IDENTIFIER_ESCAPES: t.ClassVar[t.Set[str]]
++    _COMMENTS: t.ClassVar[t.Dict[str, t.Optional[str]]]
++    _KEYWORD_TRIE: t.ClassVar[t.Dict]
++    _RS_TOKENIZER: t.ClassVar[t.Optional[t.Any]]
++
++    @classmethod
++    def __init_subclass__(cls, **kwargs: t.Any) -> None:
++        super().__init_subclass__(**kwargs)
++        cls._QUOTES = _convert_quotes(cls.QUOTES)
++        cls._IDENTIFIERS = _convert_quotes(cls.IDENTIFIERS)
++        cls._FORMAT_STRINGS = {
+             **{
+                 p + s: (e, TokenType.NATIONAL_STRING)
+-                for s, e in klass._QUOTES.items()
++                for s, e in cls._QUOTES.items()
+                 for p in ("n", "N")
+             },
+-            **_quotes_to_format(TokenType.BIT_STRING, klass.BIT_STRINGS),
+-            **_quotes_to_format(TokenType.BYTE_STRING, klass.BYTE_STRINGS),
+-            **_quotes_to_format(TokenType.HEX_STRING, klass.HEX_STRINGS),
+-            **_quotes_to_format(TokenType.RAW_STRING, klass.RAW_STRINGS),
+-            **_quotes_to_format(TokenType.HEREDOC_STRING, klass.HEREDOC_STRINGS),
+-            **_quotes_to_format(TokenType.UNICODE_STRING, klass.UNICODE_STRINGS),
++            **_quotes_to_format(TokenType.BIT_STRING, cls.BIT_STRINGS),
++            **_quotes_to_format(TokenType.BYTE_STRING, cls.BYTE_STRINGS),
++            **_quotes_to_format(TokenType.HEX_STRING, cls.HEX_STRINGS),
++            **_quotes_to_format(TokenType.RAW_STRING, cls.RAW_STRINGS),
++            **_quotes_to_format(TokenType.HEREDOC_STRING, cls.HEREDOC_STRINGS),
++            **_quotes_to_format(TokenType.UNICODE_STRING, cls.UNICODE_STRINGS),
+         }
+-
+-        if "BYTE_STRING_ESCAPES" not in klass.__dict__:
+-            klass.BYTE_STRING_ESCAPES = klass.STRING_ESCAPES.copy()
+-
+-        klass._STRING_ESCAPES = set(klass.STRING_ESCAPES)
+-        klass._BYTE_STRING_ESCAPES = set(klass.BYTE_STRING_ESCAPES)
+-        klass._ESCAPE_FOLLOW_CHARS = set(klass.ESCAPE_FOLLOW_CHARS)
+-        klass._IDENTIFIER_ESCAPES = set(klass.IDENTIFIER_ESCAPES)
+-        klass._COMMENTS = {
+-            **dict(
+-                (comment, None) if isinstance(comment, str) else (comment[0], comment[1])
+-                for comment in klass.COMMENTS
+-            ),
++        if "BYTE_STRING_ESCAPES" not in cls.__dict__:
++            cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES.copy()
++        cls._STRING_ESCAPES = set(cls.STRING_ESCAPES)
++        cls._BYTE_STRING_ESCAPES = set(cls.BYTE_STRING_ESCAPES)
++        cls._ESCAPE_FOLLOW_CHARS = set(cls.ESCAPE_FOLLOW_CHARS)
++        cls._IDENTIFIER_ESCAPES = set(cls.IDENTIFIER_ESCAPES)
++        cls._COMMENTS = {
++            **{c: None for c in cls.COMMENTS if isinstance(c, str)},
++            **{c[0]: c[1] for c in cls.COMMENTS if not isinstance(c, str)},
+             "{#": "#}",  # Ensure Jinja comments are tokenized correctly in all dialects
+         }
+-        if klass.HINT_START in klass.KEYWORDS:
+-            klass._COMMENTS[klass.HINT_START] = "*/"
+-
+-        klass._KEYWORD_TRIE = new_trie(
++        if cls.HINT_START in cls.KEYWORDS:
++            cls._COMMENTS[cls.HINT_START] = "*/"
++        cls._KEYWORD_TRIE = new_trie(
+             key.upper()
+             for key in (
+-                *klass.KEYWORDS,
+-                *klass._COMMENTS,
+-                *klass._QUOTES,
+-                *klass._FORMAT_STRINGS,
++                *cls.KEYWORDS,
++                *cls._COMMENTS,
++                *cls._QUOTES,
++                *cls._FORMAT_STRINGS,
+             )
+-            if " " in key or any(single in key for single in klass.SINGLE_TOKENS)
++            if " " in key or any(single in key for single in cls.SINGLE_TOKENS)
+         )
+-
+         if USE_RS_TOKENIZER:
+             from sqlglotrs import (  # type: ignore
+                 Tokenizer as RsTokenizer,
+@@ -95,34 +124,29 @@ def _quotes_to_format(
+             )
+ 
+             settings = RsTokenizerSettings(
+-                single_tokens={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in klass.SINGLE_TOKENS.items()},
+-                keywords={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in klass.KEYWORDS.items()},
+-                numeric_literals=klass.NUMERIC_LITERALS,
+-                identifiers=klass._IDENTIFIERS,
+-                identifier_escapes=klass._IDENTIFIER_ESCAPES,
+-                string_escapes=klass._STRING_ESCAPES,
+-                byte_string_escapes=klass._BYTE_STRING_ESCAPES,
+-                quotes=klass._QUOTES,
++                single_tokens={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in cls.SINGLE_TOKENS.items()},
++                keywords={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in cls.KEYWORDS.items()},
++                numeric_literals=cls.NUMERIC_LITERALS,
++                identifiers=cls._IDENTIFIERS,
++                identifier_escapes=cls._IDENTIFIER_ESCAPES,
++                string_escapes=cls._STRING_ESCAPES,
++                byte_string_escapes=cls._BYTE_STRING_ESCAPES,
++                quotes=cls._QUOTES,
+                 format_strings={
+-                    k: (v1, _TOKEN_TYPE_TO_INDEX[v2])
+-                    for k, (v1, v2) in klass._FORMAT_STRINGS.items()
+-                },
+-                has_bit_strings=bool(klass.BIT_STRINGS),
+-                has_hex_strings=bool(klass.HEX_STRINGS),
+-                comments=klass._COMMENTS,
+-                var_single_tokens=klass.VAR_SINGLE_TOKENS,
+-                commands={_TOKEN_TYPE_TO_INDEX[v] for v in klass.COMMANDS},
+-                command_prefix_tokens={
+-                    _TOKEN_TYPE_TO_INDEX[v] for v in klass.COMMAND_PREFIX_TOKENS
++                    k: (v1, _TOKEN_TYPE_TO_INDEX[v2]) for k, (v1, v2) in cls._FORMAT_STRINGS.items()
+                 },
+-                heredoc_tag_is_identifier=klass.HEREDOC_TAG_IS_IDENTIFIER,
+-                string_escapes_allowed_in_raw_strings=klass.STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS,
+-                nested_comments=klass.NESTED_COMMENTS,
+-                hint_start=klass.HINT_START,
+-                tokens_preceding_hint={
+-                    _TOKEN_TYPE_TO_INDEX[v] for v in klass.TOKENS_PRECEDING_HINT
+-                },
+-                escape_follow_chars=klass._ESCAPE_FOLLOW_CHARS,
++                has_bit_strings=bool(cls.BIT_STRINGS),
++                has_hex_strings=bool(cls.HEX_STRINGS),
++                comments=cls._COMMENTS,
++                var_single_tokens=cls.VAR_SINGLE_TOKENS,
++                commands={_TOKEN_TYPE_TO_INDEX[v] for v in cls.COMMANDS},
++                command_prefix_tokens={_TOKEN_TYPE_TO_INDEX[v] for v in cls.COMMAND_PREFIX_TOKENS},
++                heredoc_tag_is_identifier=cls.HEREDOC_TAG_IS_IDENTIFIER,
++                string_escapes_allowed_in_raw_strings=cls.STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS,
++                nested_comments=cls.NESTED_COMMENTS,
++                hint_start=cls.HINT_START,
++                tokens_preceding_hint={_TOKEN_TYPE_TO_INDEX[v] for v in cls.TOKENS_PRECEDING_HINT},
++                escape_follow_chars=cls._ESCAPE_FOLLOW_CHARS,
+             )
+             token_types = RsTokenTypeSettings(
+                 bit_string=_TOKEN_TYPE_TO_INDEX[TokenType.BIT_STRING],
+@@ -138,17 +162,15 @@ def _quotes_to_format(
+                 semicolon=_TOKEN_TYPE_TO_INDEX[TokenType.SEMICOLON],
+                 string=_TOKEN_TYPE_TO_INDEX[TokenType.STRING],
+                 var=_TOKEN_TYPE_TO_INDEX[TokenType.VAR],
+-                heredoc_string_alternative=_TOKEN_TYPE_TO_INDEX[klass.HEREDOC_STRING_ALTERNATIVE],
++                heredoc_string_alternative=_TOKEN_TYPE_TO_INDEX[cls.HEREDOC_STRING_ALTERNATIVE],
+                 hint=_TOKEN_TYPE_TO_INDEX[TokenType.HINT],
+             )
+-            klass._RS_TOKENIZER = RsTokenizer(settings, token_types)
++            cls._RS_TOKENIZER = RsTokenizer(settings, token_types)
+         else:
+-            klass._RS_TOKENIZER = None
+-
+-        return klass
++            cls._RS_TOKENIZER = None
+ 
+ 
+-class Tokenizer(metaclass=_Tokenizer):
++class Tokenizer(_TokenizerBase):
+     SINGLE_TOKENS = {
+         "(": TokenType.L_PAREN,
+         ")": TokenType.R_PAREN,
+@@ -183,23 +205,23 @@ class Tokenizer(metaclass=_Tokenizer):
+         '"': TokenType.UNKNOWN,
+     }
+ 
+-    BIT_STRINGS: t.List[str | t.Tuple[str, str]] = []
+-    BYTE_STRINGS: t.List[str | t.Tuple[str, str]] = []
+-    HEX_STRINGS: t.List[str | t.Tuple[str, str]] = []
+-    RAW_STRINGS: t.List[str | t.Tuple[str, str]] = []
+-    HEREDOC_STRINGS: t.List[str | t.Tuple[str, str]] = []
+-    UNICODE_STRINGS: t.List[str | t.Tuple[str, str]] = []
+-    IDENTIFIERS: t.List[str | t.Tuple[str, str]] = ['"']
+-    QUOTES: t.List[t.Tuple[str, str] | str] = ["'"]
++    BIT_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
++    BYTE_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
++    HEX_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
++    RAW_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
++    HEREDOC_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
++    UNICODE_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
++    IDENTIFIERS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = ['"']
++    QUOTES: t.ClassVar[t.List[t.Tuple[str, str] | str]] = ["'"]
+     STRING_ESCAPES = ["'"]
+-    BYTE_STRING_ESCAPES: t.List[str] = []
+-    VAR_SINGLE_TOKENS: t.Set[str] = set()
+-    ESCAPE_FOLLOW_CHARS: t.List[str] = []
++    BYTE_STRING_ESCAPES: t.ClassVar[t.List[str]] = []
++    VAR_SINGLE_TOKENS: t.ClassVar[t.Set[str]] = set()
++    ESCAPE_FOLLOW_CHARS: t.ClassVar[t.List[str]] = []
+ 
+     # The strings in this list can always be used as escapes, regardless of the surrounding
+     # identifier delimiters. By default, the closing delimiter is assumed to also act as an
+     # identifier escape, e.g. if we use double-quotes, then they also act as escapes: "x"""
+-    IDENTIFIER_ESCAPES: t.List[str] = []
++    IDENTIFIER_ESCAPES: t.ClassVar[t.List[str]] = []
+ 
+     # Whether the heredoc tags follow the same lexical rules as unquoted identifiers
+     HEREDOC_TAG_IS_IDENTIFIER = False
+@@ -217,18 +239,18 @@ class Tokenizer(metaclass=_Tokenizer):
+     TOKENS_PRECEDING_HINT = {TokenType.SELECT, TokenType.INSERT, TokenType.UPDATE, TokenType.DELETE}
+ 
+     # Autofilled
+-    _COMMENTS: t.Dict[str, str] = {}
+-    _FORMAT_STRINGS: t.Dict[str, t.Tuple[str, TokenType]] = {}
+-    _IDENTIFIERS: t.Dict[str, str] = {}
+-    _IDENTIFIER_ESCAPES: t.Set[str] = set()
+-    _QUOTES: t.Dict[str, str] = {}
+-    _STRING_ESCAPES: t.Set[str] = set()
+-    _BYTE_STRING_ESCAPES: t.Set[str] = set()
+-    _KEYWORD_TRIE: t.Dict = {}
+-    _RS_TOKENIZER: t.Optional[t.Any] = None
+-    _ESCAPE_FOLLOW_CHARS: t.Set[str] = set()
+-
+-    KEYWORDS: t.Dict[str, TokenType] = {
++    _COMMENTS: t.ClassVar[t.Dict[str, t.Optional[str]]] = {}
++    _FORMAT_STRINGS: t.ClassVar[t.Dict[str, t.Tuple[str, TokenType]]] = {}
++    _IDENTIFIERS: t.ClassVar[t.Dict[str, str]] = {}
++    _IDENTIFIER_ESCAPES: t.ClassVar[t.Set[str]] = set()
++    _QUOTES: t.ClassVar[t.Dict[str, str]] = {}
++    _STRING_ESCAPES: t.ClassVar[t.Set[str]] = set()
++    _BYTE_STRING_ESCAPES: t.ClassVar[t.Set[str]] = set()
++    _KEYWORD_TRIE: t.ClassVar[t.Dict] = {}
++    _RS_TOKENIZER: t.ClassVar[t.Optional[t.Any]] = None
++    _ESCAPE_FOLLOW_CHARS: t.ClassVar[t.Set[str]] = set()
++
++    KEYWORDS: t.ClassVar[t.Dict[str, TokenType]] = {
+         **{f"{{%{postfix}": TokenType.BLOCK_START for postfix in ("", "+", "-")},
+         **{f"{prefix}%}}": TokenType.BLOCK_END for prefix in ("", "+", "-")},
+         **{f"{{{{{postfix}": TokenType.BLOCK_START for postfix in ("+", "-")},
+@@ -556,7 +578,7 @@ class Tokenizer(metaclass=_Tokenizer):
+     COMMAND_PREFIX_TOKENS = {TokenType.SEMICOLON, TokenType.BEGIN}
+ 
+     # Handle numeric literals like in hive (3L = BIGINT)
+-    NUMERIC_LITERALS: t.Dict[str, str] = {}
++    NUMERIC_LITERALS: t.ClassVar[t.Dict[str, str]] = {}
+ 
+     COMMENTS = ["--", ("/*", "*/")]
+ 

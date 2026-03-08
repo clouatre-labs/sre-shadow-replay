@@ -84,6 +84,7 @@ One file per replay run. Produced by `scripts/score.py`.
 | `precision` | float or null | \|intersection\| / \|agent_files\|; null if agent made no changes |
 | `recall` | float or null | \|intersection\| / \|human_files\|; null if human_files is empty |
 | `jaccard` | float or null | \|intersection\| / \|union\|; null if both sets empty |
+| `f1` | float or null | Harmonic mean of precision and recall: `2 * P * R / (P + R)`; null if either is null or both are zero |
 | `scope_creep` | string[] | Files in `agent_files` but not in `human_files` |
 | `scope_creep_count` | integer | Length of `scope_creep` |
 | `agent_empty` | boolean | True if the agent produced no diff |
@@ -169,10 +170,12 @@ One row per complexity tier. Produced by `scripts/aggregate.py`.
 | `mean_precision` | float | Mean file precision across all runs in tier |
 | `mean_recall` | float | Mean file recall across all runs in tier |
 | `mean_jaccard` | float | Mean Jaccard similarity across all runs in tier |
+| `mean_f1` | float | Mean F1 score across all runs in tier |
 | `mean_scope_creep_count` | float | Mean number of extra files per run |
 | `std_precision` | float | Standard deviation of precision |
 | `std_recall` | float | Standard deviation of recall |
 | `std_jaccard` | float | Standard deviation of Jaccard |
+| `std_f1` | float | Standard deviation of F1 |
 | `agent_empty_rate` | float | Fraction of runs where agent produced no diff |
 | `mean_wall_clock_seconds` | float | Mean wall-clock duration in seconds across all runs in tier |
 | `mean_cost_usd` | float | Mean API cost per run across all runs in tier |
@@ -221,6 +224,8 @@ One row per PR. Produced by `scripts/aggregate.py`. Reports cross-run variance.
 | `recall_std` | float | Standard deviation of recall |
 | `jaccard_mean` | float | Mean Jaccard across runs |
 | `jaccard_std` | float | Standard deviation of Jaccard |
+| `f1_mean` | float | Mean F1 score across runs |
+| `f1_std` | float | Standard deviation of F1 |
 | `consistent` | integer | 1 if jaccard_std <= 0.1, else 0 |
 
 ---

@@ -1,0 +1,44 @@
+{
+  "pr_number": 7166,
+  "run_id": "run-2",
+  "agent_files": [
+    "sqlglot/dialects/databricks.py",
+    "sqlglot/dialects/spark.py",
+    "sqlglot/expressions/__init__.py",
+    "sqlglot/generator.py",
+    "sqlglot/parser.py",
+    "tests/dialects/test_databricks.py",
+    "tests/dialects/test_spark.py"
+  ],
+  "human_files": [
+    "sqlglot/dialects/spark.py",
+    "tests/dialects/test_spark.py"
+  ],
+  "intersection": [
+    "sqlglot/dialects/spark.py",
+    "tests/dialects/test_spark.py"
+  ],
+  "precision": 0.2857,
+  "recall": 1.0,
+  "jaccard": 0.2857,
+  "f1": 0.4444,
+  "scope_creep": [
+    "sqlglot/dialects/databricks.py",
+    "sqlglot/expressions/__init__.py",
+    "sqlglot/generator.py",
+    "sqlglot/parser.py",
+    "tests/dialects/test_databricks.py"
+  ],
+  "scope_creep_count": 5,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:51+00:00",
+  "end_ts": "2026-03-08T14:50:55+00:00",
+  "wall_clock_seconds": 4,
+  "latency_ms": 4121,
+  "input_tokens": 3421,
+  "output_tokens": 207,
+  "cost_usd": 0.013368,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

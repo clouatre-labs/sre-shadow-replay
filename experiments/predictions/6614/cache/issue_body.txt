@@ -1,0 +1,17 @@
+https://docs.snowflake.com/en/sql-reference/functions/last_day
+https://duckdb.org/docs/stable/sql/functions/date#last_daydate
+
+There are a few differences between Snowflake's LAST_DAY and DuckDB's LAST_DAY:
+
+Snowflake supports an additional argument called date_part which can be 'year,' 'quarter', 'month', or 'week', while DuckDB's LAST_DAY doesn't have this configuration and returns the last day of the month of the input timestamp.
+
+Also, Snowflake treats Sunday as the last day of the week, while DuckDB's DAYOFWEEK treats Saturday as the last day of the week
+https://duckdb.org/docs/stable/sql/functions/datepart
+
+If date_part is 'month', we can use DuckDB's LAST_DAY directly.
+
+If date_part is 'year', we extract the year part from the input (DuckDB's EXTRACT), and return Dec 31st of that year.
+
+if date_part is 'quarter', we extract the year and quarter from the input (DuckDB's EXTRACT). Then we use the first day of the last month of that quarter (quarter * 3 = last month in that quarter) as input to invoke DuckDB's LAST_DAY to get the last day of the month, which is also the last day of that quarter.
+
+if date_part is 'week', we extract the day of the week from the input (DuckDB's EXTRACT, Sunday = 0, Saturday = 6). Since Snowflake treats Sunday as the last day of the week, we want to know many days we need to add to the input date to reach the coming Sunday.  (7 - dayofweek) % 7 returns the days we need to add to the input, and then we return a date that is the addition of the input date + (7 - dayofweek) % 7

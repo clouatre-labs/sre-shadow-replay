@@ -1,0 +1,14 @@
+{
+  "pr_number": 6699,
+  "run_id": "run-2",
+  "predicted_files": [
+    "sqlglot/dialects/spark.py",
+    "sqlglot/dialects/spark2.py",
+    "sqlglot/dialects/databricks.py",
+    "sqlglot/expressions.py",
+    "sqlglot/generator.py",
+    "sqlglot/parser.py",
+    "tests/dialects/test_spark.py",
+    "tests/dialects/test_databricks.py"
+  ]
+}

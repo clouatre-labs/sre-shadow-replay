@@ -1,7 +1,0 @@
-## This PR annotate `DEGREES(expr)` for T-SQL
-
-follow-up to #7074 
-
-https://learn.microsoft.com/en-us/sql/t-sql/functions/degrees-transact-sql?view=sql-server-ver17
-
-@geooo109 should we annotate exactly or is this fine with "this"?

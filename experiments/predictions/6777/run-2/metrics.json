@@ -1,0 +1,46 @@
+{
+  "pr_number": 6777,
+  "run_id": "run-2",
+  "agent_files": [
+    "sqlglot/dialects/bigquery.py",
+    "sqlglot/expressions.py",
+    "sqlglot/optimizer/annotate_types.py",
+    "sqlglot/typing/bigquery.py",
+    "tests/dialects/test_bigquery.py",
+    "tests/fixtures/optimizer/annotate_types.sql"
+  ],
+  "human_files": [
+    "sqlglot/dialects/bigquery.py",
+    "sqlglot/expressions.py",
+    "sqlglot/generator.py",
+    "sqlglot/typing/bigquery.py",
+    "tests/dialects/test_bigquery.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "intersection": [
+    "sqlglot/dialects/bigquery.py",
+    "sqlglot/expressions.py",
+    "sqlglot/typing/bigquery.py",
+    "tests/dialects/test_bigquery.py"
+  ],
+  "precision": 0.6667,
+  "recall": 0.6667,
+  "jaccard": 0.5,
+  "f1": 0.6667,
+  "scope_creep": [
+    "sqlglot/optimizer/annotate_types.py",
+    "tests/fixtures/optimizer/annotate_types.sql"
+  ],
+  "scope_creep_count": 2,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:46+00:00",
+  "end_ts": "2026-03-08T14:50:48+00:00",
+  "wall_clock_seconds": 2,
+  "latency_ms": 1700,
+  "input_tokens": 3353,
+  "output_tokens": 84,
+  "cost_usd": 0.011319,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

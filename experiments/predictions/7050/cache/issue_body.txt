@@ -1,0 +1,8 @@
+Small refactor to use `IntEnum` instead of `AutoName`.
+
+```
+.....................
+parse_sqlglot_crazy: Mean +- std dev: 5.57 ms +- 0.22 ms
+.....................
+parse_sqlglot_crazy: Mean +- std dev: 6.09 ms +- 0.14 ms
+```

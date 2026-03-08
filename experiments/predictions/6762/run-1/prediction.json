@@ -1,0 +1,14 @@
+{
+  "pr_number": 6762,
+  "run_id": "run-1",
+  "predicted_files": [
+    "sqlglot/expressions.py",
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/dialects/postgres.py",
+    "sqlglot/dialects/snowflake.py",
+    "sqlglot/dialects/databricks.py",
+    "sqlglot/dialects/spark.py",
+    "sqlglot/transforms.py",
+    "sqlglot/generator.py"
+  ]
+}

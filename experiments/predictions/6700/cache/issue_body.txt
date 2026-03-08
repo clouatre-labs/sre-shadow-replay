@@ -1,0 +1,5 @@
+This PR fixes the generation of the MySQL-subset dialects Doris & Starrocks as they do support `FROM` clause in their `UPDATE` statement syntax, unlike MySQL & SingleStore.
+
+Docs
+----------
+[SingleStore](https://docs.singlestore.com/cloud/reference/sql-reference/data-manipulation-language-dml/update/) | [Doris](https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-modification/DML/UPDATE) | [Starrocks](https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/UPDATE/#multi-table-update)

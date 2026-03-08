@@ -1,0 +1,202 @@
+diff --git a/sqlglot/dialects/clickhouse.py b/sqlglot/dialects/clickhouse.py
+index 6df81544d1..c7ce40b23b 100644
+--- a/sqlglot/dialects/clickhouse.py
++++ b/sqlglot/dialects/clickhouse.py
+@@ -1186,6 +1186,7 @@ class Generator(generator.Generator):
+             exp.Rand: rename_func("randCanonical"),
+             exp.StartsWith: rename_func("startsWith"),
+             exp.Struct: rename_func("tuple"),
++            exp.Trunc: rename_func("trunc"),
+             exp.EndsWith: rename_func("endsWith"),
+             exp.EuclideanDistance: rename_func("L2Distance"),
+             exp.StrPosition: lambda self, e: strposition_sql(
+diff --git a/sqlglot/dialects/duckdb.py b/sqlglot/dialects/duckdb.py
+index 6ef5940697..59ab9fb2db 100644
+--- a/sqlglot/dialects/duckdb.py
++++ b/sqlglot/dialects/duckdb.py
+@@ -2728,6 +2728,10 @@ def parsejson_sql(self, expression: exp.ParseJSON) -> str:
+                 return self.sql(exp.case().when(exp.func("json_valid", arg), arg).else_(exp.null()))
+             return self.func("JSON", arg)
+ 
++        @unsupported_args("decimals")
++        def trunc_sql(self, expression: exp.Trunc) -> str:
++            return self.func("TRUNC", expression.this)
++
+         def normal_sql(self, expression: exp.Normal) -> str:
+             """
+             Transpile Snowflake's NORMAL(mean, stddev, gen) to DuckDB.
+diff --git a/sqlglot/dialects/hive.py b/sqlglot/dialects/hive.py
+index d4ccc5c598..9a1985ae17 100644
+--- a/sqlglot/dialects/hive.py
++++ b/sqlglot/dialects/hive.py
+@@ -776,6 +776,13 @@ def arrayagg_sql(self, expression: exp.ArrayAgg) -> str:
+                 expression.this.this if isinstance(expression.this, exp.Order) else expression.this,
+             )
+ 
++        # Hive/Spark lack native numeric TRUNC. CAST to BIGINT truncates toward zero (not rounds).
++        # Potential enhancement: a TRUNC_TEMPLATE using FLOOR/CEIL with scale (Spark 3.3+)
++        # could preserve decimals: CASE WHEN x >= 0 THEN FLOOR(x, d) ELSE CEIL(x, d) END
++        @unsupported_args("decimals")
++        def trunc_sql(self, expression: exp.Trunc) -> str:
++            return self.sql(exp.cast(expression.this, exp.DataType.Type.BIGINT))
++
+         def datatype_sql(self, expression: exp.DataType) -> str:
+             if expression.this in self.PARAMETERIZABLE_TEXT_TYPES and (
+                 not expression.expressions or expression.expressions[0].name == "MAX"
+diff --git a/sqlglot/dialects/presto.py b/sqlglot/dialects/presto.py
+index 8f54c7b758..a576dd3636 100644
+--- a/sqlglot/dialects/presto.py
++++ b/sqlglot/dialects/presto.py
+@@ -545,6 +545,12 @@ class Generator(generator.Generator):
+             exp.WithinGroup: transforms.preprocess(
+                 [transforms.remove_within_group_for_percentiles]
+             ),
++            # Note: Presto's TRUNCATE always returns DOUBLE, even with decimals=0, whereas
++            # most dialects return INT (SQLite also returns REAL, see sqlite.py). This creates
++            # a bidirectional transpilation gap: Presto→Other may change float division to int
++            # division, and vice versa. Modeling precisely would require exp.FloatTrunc or
++            # similar, deemed overengineering for this subtle semantic difference.
++            exp.Trunc: rename_func("TRUNCATE"),
+             exp.Xor: bool_xor_sql,
+             exp.MD5Digest: rename_func("MD5"),
+             exp.SHA: rename_func("SHA1"),
+diff --git a/sqlglot/dialects/sqlite.py b/sqlglot/dialects/sqlite.py
+index 523bde613d..d117197d13 100644
+--- a/sqlglot/dialects/sqlite.py
++++ b/sqlglot/dialects/sqlite.py
+@@ -267,6 +267,10 @@ def cast_sql(self, expression: exp.Cast, safe_prefix: t.Optional[str] = None) ->
+ 
+             return super().cast_sql(expression)
+ 
++        # Note: SQLite's TRUNC always returns REAL (e.g., trunc(10.99) -> 10.0), not INTEGER.
++        # This creates a transpilation gap affecting division semantics, similar to Presto.
++        # Unlike Presto where this only affects decimals=0, SQLite has no decimals parameter
++        # so every use of TRUNC is affected. Modeling precisely would require exp.FloatTrunc.
+         @unsupported_args("decimals")
+         def trunc_sql(self, expression: exp.Trunc) -> str:
+             return self.func("TRUNC", expression.this)
+diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py
+index 919ec9dcea..54d0b7f857 100644
+--- a/tests/dialects/test_clickhouse.py
++++ b/tests/dialects/test_clickhouse.py
+@@ -110,6 +110,15 @@ def test_clickhouse(self):
+         self.validate_identity("TRUNCATE DATABASE db")
+         self.validate_identity("TRUNCATE DATABASE db ON CLUSTER test_cluster")
+         self.validate_identity("TRUNCATE DATABASE db ON CLUSTER '{cluster}'")
++
++        # Numeric trunc
++        self.validate_identity("trunc(3.14159, 2)").assert_is(exp.Trunc)
++        self.validate_identity("trunc(3.14159)").assert_is(exp.Trunc)
++        self.validate_all(
++            "trunc(3.14159, 2)",
++            read={"postgres": "TRUNC(3.14159, 2)"},
++        )
++
+         self.validate_identity("EXCHANGE TABLES x.a AND y.b", check_command_warning=True)
+         self.validate_identity("CREATE TABLE test (id UInt8) ENGINE=Null()")
+         self.validate_identity(
+diff --git a/tests/dialects/test_duckdb.py b/tests/dialects/test_duckdb.py
+index 500dc38527..d8ceffba8e 100644
+--- a/tests/dialects/test_duckdb.py
++++ b/tests/dialects/test_duckdb.py
+@@ -9,6 +9,14 @@ class TestDuckDB(Validator):
+     dialect = "duckdb"
+ 
+     def test_duckdb(self):
++        # Numeric TRUNC - DuckDB only supports TRUNC(x), no decimals parameter
++        self.validate_identity("TRUNC(3.14)").assert_is(exp.Trunc)
++        self.validate_identity("TRUNC(3.14, 2)", "TRUNC(3.14)").assert_is(exp.Trunc)
++        self.validate_all(
++            "TRUNC(3.14159)",
++            read={"postgres": "TRUNC(3.14159, 2)"},
++        )
++
+         self.validate_identity("SELECT ([1,2,3])[:-:-1]", "SELECT ([1, 2, 3])[:-1:-1]")
+         self.validate_identity(
+             "SELECT INTERVAL '1 hour'::VARCHAR", "SELECT CAST(INTERVAL '1' HOUR AS TEXT)"
+diff --git a/tests/dialects/test_hive.py b/tests/dialects/test_hive.py
+index ab3c53a0ee..a12cff11ce 100644
+--- a/tests/dialects/test_hive.py
++++ b/tests/dialects/test_hive.py
+@@ -888,6 +888,13 @@ def test_hive(self):
+ 
+         # Hive TRUNC is date-only, should parse to TimestampTrunc (not numeric Trunc)
+         self.validate_identity("TRUNC(date_col, 'MM')").assert_is(exp.TimestampTrunc)
++
++        # Numeric TRUNC from other dialects - Hive has no native support, uses CAST to BIGINT
++        self.validate_all(
++            "CAST(3.14159 AS BIGINT)",
++            read={"postgres": "TRUNC(3.14159, 2)"},
++        )
++
+         self.validate_all(
+             "REGEXP_EXTRACT('abc', '(a)(b)(c)')",
+             read={
+diff --git a/tests/dialects/test_oracle.py b/tests/dialects/test_oracle.py
+index 8b1902b752..b33af352ff 100644
+--- a/tests/dialects/test_oracle.py
++++ b/tests/dialects/test_oracle.py
+@@ -802,7 +802,10 @@ def test_trunc(self):
+                 "tsql": "ROUND(3.14159, 2, 1)",
+                 "snowflake": "TRUNC(3.14159, 2)",
+                 "bigquery": "TRUNC(3.14159, 2)",
+-                "duckdb": "TRUNC(3.14159, 2)",
++                "duckdb": "TRUNC(3.14159)",
++                "presto": "TRUNCATE(3.14159, 2)",
++                "clickhouse": "trunc(3.14159, 2)",
++                "spark": "CAST(3.14159 AS BIGINT)",
+             },
+         )
+ 
+diff --git a/tests/dialects/test_presto.py b/tests/dialects/test_presto.py
+index d162b1fa17..5932c9d833 100644
+--- a/tests/dialects/test_presto.py
++++ b/tests/dialects/test_presto.py
+@@ -718,6 +718,14 @@ def test_presto(self):
+         self.validate_identity("SELECT * FROM x OFFSET 1 LIMIT 1")
+         self.validate_identity("SELECT * FROM x OFFSET 1 FETCH FIRST 1 ROWS ONLY")
+         self.validate_identity("SELECT BOOL_OR(a > 10) FROM asd AS T(a)")
++
++        # Numeric TRUNCATE
++        self.validate_identity("TRUNCATE(3.14159, 2)").assert_is(exp.Trunc)
++        self.validate_identity("TRUNCATE(3.14159)").assert_is(exp.Trunc)
++        self.validate_all(
++            "TRUNCATE(3.14159, 2)",
++            read={"postgres": "TRUNC(3.14159, 2)"},
++        )
+         self.validate_identity("SELECT * FROM (VALUES (1))")
+         self.validate_identity("START TRANSACTION READ WRITE, ISOLATION LEVEL SERIALIZABLE")
+         self.validate_identity("START TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+diff --git a/tests/dialects/test_snowflake.py b/tests/dialects/test_snowflake.py
+index fe22b8b7d6..54c582e5d4 100644
+--- a/tests/dialects/test_snowflake.py
++++ b/tests/dialects/test_snowflake.py
+@@ -3577,7 +3577,10 @@ def test_trunc(self):
+                 "mysql": "TRUNCATE(3.14159, 2)",
+                 "tsql": "ROUND(3.14159, 2, 1)",
+                 "bigquery": "TRUNC(3.14159, 2)",
+-                "duckdb": "TRUNC(3.14159, 2)",
++                "duckdb": "TRUNC(3.14159)",
++                "presto": "TRUNCATE(3.14159, 2)",
++                "clickhouse": "trunc(3.14159, 2)",
++                "spark": "CAST(3.14159 AS BIGINT)",
+             },
+         )
+ 
+diff --git a/tests/dialects/test_spark.py b/tests/dialects/test_spark.py
+index e06c0d821e..1055bc7e47 100644
+--- a/tests/dialects/test_spark.py
++++ b/tests/dialects/test_spark.py
+@@ -279,6 +279,12 @@ def test_spark(self):
+         # Spark TRUNC is date-only, should parse to DateTrunc (not numeric Trunc)
+         self.validate_identity("TRUNC(date_col, 'MM')").assert_is(exp.DateTrunc)
+ 
++        # Numeric TRUNC from other dialects - Spark has no native support, uses CAST to BIGINT
++        self.validate_all(
++            "CAST(3.14159 AS BIGINT)",
++            read={"postgres": "TRUNC(3.14159, 2)"},
++        )
++
+         self.validate_identity("SELECT APPROX_TOP_K_ACCUMULATE(col, 10)")
+         self.validate_identity("SELECT APPROX_TOP_K_ACCUMULATE(col)")
+         self.validate_identity("SELECT BITMAP_BIT_POSITION(10)")

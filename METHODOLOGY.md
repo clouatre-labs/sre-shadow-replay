@@ -200,6 +200,14 @@ Jaccard = |A intersect H| / |A union H|
 
 Equal to 1.0 only when `A = H` exactly. Undefined when both sets are empty.
 
+### F1 Score
+
+```
+F1 = 2 * Precision * Recall / (Precision + Recall)
+```
+
+The harmonic mean of precision and recall. Unlike the arithmetic mean, the harmonic mean penalizes extreme imbalance between precision and recall. Undefined (recorded as `null`) when either precision or recall is `null`, or when both are zero.
+
 ### Scope Creep
 
 ```

@@ -1,0 +1,11 @@
+{
+  "pr_number": 7200,
+  "run_id": "run-1",
+  "predicted_files": [
+    "sqlglot/dialects/snowflake.py",
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/expressions/array.py",
+    "tests/dialects/test_snowflake.py",
+    "tests/dialects/test_duckdb.py"
+  ]
+}

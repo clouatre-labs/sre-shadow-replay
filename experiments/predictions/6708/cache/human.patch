@@ -1,0 +1,27 @@
+diff --git a/sqlglot/typing/spark.py b/sqlglot/typing/spark.py
+index 4617c00356..b2ee26d638 100644
+--- a/sqlglot/typing/spark.py
++++ b/sqlglot/typing/spark.py
+@@ -6,4 +6,7 @@
+ EXPRESSION_METADATA = {
+     **EXPRESSION_METADATA,
+     exp.Localtimestamp: {"returns": exp.DataType.Type.TIMESTAMPNTZ},
++    exp.CurrentTimezone: {
++        "returns": exp.DataType.Type.VARCHAR,
++    },
+ }
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index 55f7467e86..0a3ec4696f 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -335,6 +335,10 @@ BINARY;
+ ENCODE(tbl.bin_col, tbl.bin_col);
+ BINARY;
+ 
++# dialect: spark, databricks
++CURRENT_TIMEZONE();
++STRING;
++
+ --------------------------------------
+ -- BigQuery
+ --------------------------------------

@@ -1,0 +1,9 @@
+{
+  "pr_number": 7147,
+  "run_id": "run-3",
+  "predicted_files": [
+    "sqlglot/expressions.py",
+    "sqlglot/dialects/trino.py",
+    "tests/dialects/test_trino.py"
+  ]
+}

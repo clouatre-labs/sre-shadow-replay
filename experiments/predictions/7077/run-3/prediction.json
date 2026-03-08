@@ -1,0 +1,8 @@
+{
+  "pr_number": 7077,
+  "run_id": "run-3",
+  "predicted_files": [
+    "sqlglot/typing/tsql.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ]
+}

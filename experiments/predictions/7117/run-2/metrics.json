@@ -1,0 +1,49 @@
+{
+  "pr_number": 7117,
+  "run_id": "run-2",
+  "agent_files": [
+    "setup.cfg",
+    "setup.py",
+    "sqlglot/parser.py",
+    "sqlglot/tokenizer_core.py",
+    "sqlglot/tokens.py"
+  ],
+  "human_files": [
+    "sqlglot/dialects/dialect.py",
+    "sqlglot/expression_core.py",
+    "sqlglot/expressions.py",
+    "sqlglot/generator.py",
+    "sqlglot/helper.py",
+    "sqlglot/optimizer/normalize_identifiers.py",
+    "sqlglot/optimizer/scope.py",
+    "sqlglot/optimizer/simplify.py",
+    "sqlglot/parser.py",
+    "sqlglot/planner.py",
+    "sqlglot/tokens.py"
+  ],
+  "intersection": [
+    "sqlglot/parser.py",
+    "sqlglot/tokens.py"
+  ],
+  "precision": 0.4,
+  "recall": 0.1818,
+  "jaccard": 0.1429,
+  "f1": 0.25,
+  "scope_creep": [
+    "setup.cfg",
+    "setup.py",
+    "sqlglot/tokenizer_core.py"
+  ],
+  "scope_creep_count": 3,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:50+00:00",
+  "end_ts": "2026-03-08T14:50:55+00:00",
+  "wall_clock_seconds": 5,
+  "latency_ms": 5117,
+  "input_tokens": 3766,
+  "output_tokens": 253,
+  "cost_usd": 0.015093,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

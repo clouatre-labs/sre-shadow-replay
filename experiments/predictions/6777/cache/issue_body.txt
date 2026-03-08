@@ -1,0 +1,4 @@
+This PR adds parsing and type annotation for BigQuery `NET.REG_DOMAIN`
+
+**DOCS**
+[BigQuery NET.REG_DOMAIN](https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/net_functions#netreg_domain)

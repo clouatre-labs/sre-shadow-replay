@@ -1,0 +1,37 @@
+{
+  "pr_number": 7147,
+  "run_id": "run-2",
+  "agent_files": [
+    "sqlglot/dialects/trino.py",
+    "sqlglot/expressions.py",
+    "tests/dialects/test_trino.py"
+  ],
+  "human_files": [
+    "sqlglot/expressions.py",
+    "tests/dialects/test_trino.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "intersection": [
+    "sqlglot/expressions.py",
+    "tests/dialects/test_trino.py"
+  ],
+  "precision": 0.6667,
+  "recall": 0.6667,
+  "jaccard": 0.5,
+  "f1": 0.6667,
+  "scope_creep": [
+    "sqlglot/dialects/trino.py"
+  ],
+  "scope_creep_count": 1,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:50+00:00",
+  "end_ts": "2026-03-08T14:50:51+00:00",
+  "wall_clock_seconds": 1,
+  "latency_ms": 1302,
+  "input_tokens": 3319,
+  "output_tokens": 44,
+  "cost_usd": 0.010617,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

@@ -1,0 +1,11 @@
+{
+  "pr_number": 6710,
+  "run_id": "run-2",
+  "predicted_files": [
+    "sqlglot/dialects/oracle.py",
+    "sqlglot/expressions.py",
+    "sqlglot/parser.py",
+    "sqlglot/generator.py",
+    "tests/dialects/test_oracle.py"
+  ]
+}

@@ -1,0 +1,5 @@
+Fixes #7096 (partial)
+
+**DOCS**
+[spark ELEMENT_AT](https://spark.apache.org/docs/latest/api/sql/index.html#element_at)
+[databricks ELEMENT_AT](https://docs.databricks.com/aws/en/sql/language-manual/functions/element_at)

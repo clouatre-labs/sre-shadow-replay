@@ -1,5 +1,0 @@
-Fixes #7165 
-
-**DOCS**
-[Spark4 SET](https://spark.apache.org/docs/latest/sql-ref-syntax-aux-set-var.html)
-[Databricks SET](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-set-variable)

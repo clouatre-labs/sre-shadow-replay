@@ -1,0 +1,289 @@
+diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py
+index 797c790600..de5db16983 100644
+--- a/sqlglot/dialects/dialect.py
++++ b/sqlglot/dialects/dialect.py
+@@ -696,6 +696,9 @@ class Dialect(metaclass=_Dialect):
+     ARRAY_AGG_INCLUDES_NULLS: t.Optional[bool] = True
+     """Whether ArrayAgg needs to filter NULL values."""
+ 
++    ARRAY_APPEND_PROPAGATES_NULLS = False
++    """Whether ArrayAppend returns NULL when the input array is NULL."""
++
+     PROMOTE_TO_INFERRED_DATETIME_TYPE = False
+     """
+     This flag is used in the optimizer's canonicalize rule and determines whether x will be promoted
+@@ -1342,6 +1345,48 @@ def struct_extract_sql(self: Generator, expression: exp.StructExtract) -> str:
+     )
+ 
+ 
++def array_append_sql(name: str) -> t.Callable[[Generator, exp.ArrayAppend], str]:
++    """
++    Transpile ARRAY_APPEND between dialects with different NULL propagation semantics.
++
++    Some dialects (Databricks, Spark, Snowflake) return NULL when the input array is NULL.
++    Others (DuckDB, Postgres) create a new single-element array instead.
++
++    Args:
++        name: Target dialect's function name (e.g., "ARRAY_APPEND", "LIST_APPEND")
++
++    Returns:
++        A callable that generates SQL with appropriate NULL handling for the target dialect.
++        Dialects that propagate NULLs need to set `ARRAY_APPEND_PROPAGATES_NULLS` to True.
++    """
++
++    def _array_append_sql(self: Generator, expression: exp.ArrayAppend) -> str:
++        this = expression.this
++        func_sql = self.func(name, this, expression.expression)
++        source_null_propagation = bool(expression.args.get("null_propagation"))
++        target_null_propagation = self.dialect.ARRAY_APPEND_PROPAGATES_NULLS
++
++        # No transpilation needed when source and target have matching NULL semantics
++        if source_null_propagation == target_null_propagation:
++            return func_sql
++
++        # Source propagates NULLs, target doesn't: wrap in conditional to return NULL explicitly
++        if source_null_propagation:
++            return self.sql(
++                exp.If(
++                    this=exp.Is(this=this, expression=exp.Null()),
++                    true=exp.Null(),
++                    false=func_sql,
++                )
++            )
++
++        # Source doesn't propagate NULLs, target does: use COALESCE to convert NULL to empty array
++        this = exp.Coalesce(expressions=[this, exp.Array(expressions=[])])
++        return self.func(name, this, expression.expression)
++
++    return _array_append_sql
++
++
+ def var_map_sql(
+     self: Generator, expression: exp.Map | exp.VarMap, map_func_name: str = "MAP"
+ ) -> str:
+diff --git a/sqlglot/dialects/duckdb.py b/sqlglot/dialects/duckdb.py
+index 5db577c9dd..a07aa1e2bd 100644
+--- a/sqlglot/dialects/duckdb.py
++++ b/sqlglot/dialects/duckdb.py
+@@ -13,6 +13,7 @@
+     JSON_EXTRACT_TYPE,
+     NormalizationStrategy,
+     approx_count_distinct_sql,
++    array_append_sql,
+     arrow_json_extract_sql,
+     binary_from_function,
+     bool_xor_sql,
+@@ -1468,7 +1469,7 @@ class Generator(generator.Generator):
+                 [transforms.inherit_struct_field_names],
+                 generator=inline_array_unless_query,
+             ),
+-            exp.ArrayAppend: rename_func("LIST_APPEND"),
++            exp.ArrayAppend: array_append_sql("LIST_APPEND"),
+             exp.ArrayFilter: rename_func("LIST_FILTER"),
+             exp.ArrayRemove: remove_from_array_using_filter,
+             exp.ArraySort: _array_sort_sql,
+diff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py
+index c8c6e4a551..6ce773110c 100644
+--- a/sqlglot/dialects/postgres.py
++++ b/sqlglot/dialects/postgres.py
+@@ -8,6 +8,7 @@
+     Dialect,
+     JSON_EXTRACT_TYPE,
+     any_value_to_max_sql,
++    array_append_sql,
+     binary_from_function,
+     bool_xor_sql,
+     datestrtodate_sql,
+@@ -626,6 +627,7 @@ class Generator(generator.Generator):
+             exp.AnyValue: _versioned_anyvalue_sql,
+             exp.ArrayConcat: lambda self, e: self.arrayconcat_sql(e, name="ARRAY_CAT"),
+             exp.ArrayFilter: filter_array_using_unnest,
++            exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
+             exp.ArrayPrepend: lambda self, e: self.func("ARRAY_PREPEND", e.expression, e.this),
+             exp.BitwiseAndAgg: rename_func("BIT_AND"),
+             exp.BitwiseOrAgg: rename_func("BIT_OR"),
+diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py
+index de84a921ec..adcfee3dd2 100644
+--- a/sqlglot/dialects/snowflake.py
++++ b/sqlglot/dialects/snowflake.py
+@@ -6,6 +6,7 @@
+ from sqlglot.dialects.dialect import (
+     Dialect,
+     NormalizationStrategy,
++    array_append_sql,
+     build_timetostr_or_tochar,
+     build_like,
+     binary_from_function,
+@@ -659,6 +660,7 @@ class Snowflake(Dialect):
+     TABLESAMPLE_SIZE_IS_PERCENT = True
+     COPY_PARAMS_ARE_CSV = False
+     ARRAY_AGG_INCLUDES_NULLS = None
++    ARRAY_APPEND_PROPAGATES_NULLS = True
+     ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN = False
+     TRY_CAST_REQUIRES_STRING = True
+     SUPPORTS_ALIAS_REFS_IN_JOIN_CONDITIONS = True
+@@ -1512,6 +1514,7 @@ class Generator(generator.Generator):
+             exp.ArgMin: rename_func("MIN_BY"),
+             exp.Array: transforms.preprocess([transforms.inherit_struct_field_names]),
+             exp.ArrayConcat: lambda self, e: self.arrayconcat_sql(e, name="ARRAY_CAT"),
++            exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
+             exp.ArrayContains: lambda self, e: self.func(
+                 "ARRAY_CONTAINS",
+                 e.expression
+diff --git a/sqlglot/dialects/spark.py b/sqlglot/dialects/spark.py
+index f1e07da527..d8870a2068 100644
+--- a/sqlglot/dialects/spark.py
++++ b/sqlglot/dialects/spark.py
+@@ -4,6 +4,7 @@
+ 
+ from sqlglot import exp
+ from sqlglot.dialects.dialect import (
++    array_append_sql,
+     rename_func,
+     build_like,
+     unit_to_var,
+@@ -113,6 +114,7 @@ def _groupconcat_sql(self: Spark.Generator, expression: exp.GroupConcat) -> str:
+ class Spark(Spark2):
+     SUPPORTS_ORDER_BY_ALL = True
+     SUPPORTS_NULL_TYPE = True
++    ARRAY_APPEND_PROPAGATES_NULLS = True
+     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
+ 
+     class Tokenizer(Spark2.Tokenizer):
+@@ -205,6 +207,7 @@ class Generator(Spark2.Generator):
+             exp.ArrayConstructCompact: lambda self, e: self.func(
+                 "ARRAY_COMPACT", self.func("ARRAY", *e.expressions)
+             ),
++            exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
+             exp.BitwiseAndAgg: rename_func("BIT_AND"),
+             exp.BitwiseOrAgg: rename_func("BIT_OR"),
+             exp.BitwiseXorAgg: rename_func("BIT_XOR"),
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 93b79efaf1..e7d156b49f 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -6062,7 +6062,7 @@ class ArrayAny(Func):
+ 
+ 
+ class ArrayAppend(Func):
+-    arg_types = {"this": True, "expression": True}
++    arg_types = {"this": True, "expression": True, "null_propagation": False}
+ 
+ 
+ class ArrayPrepend(Func):
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 54bcd38966..0745fdc61a 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -178,6 +178,27 @@ def build_locate_strposition(args: t.List):
+     )
+ 
+ 
++def build_array_append(args: t.List, dialect: Dialect) -> exp.ArrayAppend:
++    """
++    Builds ArrayAppend with NULL propagation semantics based on the dialect configuration.
++
++    Some dialects (Databricks, Spark, Snowflake) return NULL when the input array is NULL.
++    Others (DuckDB, PostgreSQL) create a new single-element array instead.
++
++    Args:
++        args: Function arguments [array, element]
++        dialect: The dialect to read ARRAY_APPEND_PROPAGATES_NULLS from
++
++    Returns:
++        ArrayAppend expression with appropriate null_propagation flag
++    """
++    return exp.ArrayAppend(
++        this=seq_get(args, 0),
++        expression=seq_get(args, 1),
++        null_propagation=dialect.ARRAY_APPEND_PROPAGATES_NULLS,
++    )
++
++
+ class _Parser(type):
+     def __new__(cls, clsname, bases, attrs):
+         klass = super().__new__(cls, clsname, bases, attrs)
+@@ -213,6 +234,7 @@ class Parser(metaclass=_Parser):
+         "ARRAY_AGG": lambda args, dialect: exp.ArrayAgg(
+             this=seq_get(args, 0), nulls_excluded=dialect.ARRAY_AGG_INCLUDES_NULLS is None or None
+         ),
++        "ARRAY_APPEND": build_array_append,
+         "COUNT": lambda args: exp.Count(this=seq_get(args, 0), expressions=args[1:], big_int=True),
+         "CONCAT": lambda args, dialect: exp.Concat(
+             expressions=args,
+diff --git a/tests/dialects/test_dialect.py b/tests/dialects/test_dialect.py
+index cda6c21eec..0280aa05b9 100644
+--- a/tests/dialects/test_dialect.py
++++ b/tests/dialects/test_dialect.py
+@@ -1492,25 +1492,64 @@ def test_array(self):
+             },
+         )
+ 
++        # Test basic syntax transpilation for array creation semantics
+         self.validate_all(
+             "ARRAY_APPEND(arr, x)",
+             read={
+-                "": "ARRAY_APPEND(arr, x)",
+                 "duckdb": "LIST_APPEND(arr, x)",
+                 "postgres": "ARRAY_APPEND(arr, x)",
+-                "spark": "ARRAY_APPEND(arr, x)",
+-                "databricks": "ARRAY_APPEND(arr, x)",
+-                "snowflake": "ARRAY_APPEND(arr, x)",
+             },
+             write={
+                 "duckdb": "LIST_APPEND(arr, x)",
+                 "postgres": "ARRAY_APPEND(arr, x)",
+-                "spark": "ARRAY_APPEND(arr, x)",
+-                "databricks": "ARRAY_APPEND(arr, x)",
+-                "snowflake": "ARRAY_APPEND(arr, x)",
+             },
+         )
+ 
++        # Test NULL propagation semantics: NULL-propagating dialects → array-creating dialects
++        for source_dialect in ("snowflake", "databricks", "spark"):
++            with self.subTest(f"NULL propagation: {source_dialect} → DuckDB/PostgreSQL"):
++                expr = parse_one("ARRAY_APPEND(arr, x)", dialect=source_dialect)
++                self.assertEqual(
++                    expr.sql("duckdb"),
++                    "CASE WHEN arr IS NULL THEN NULL ELSE LIST_APPEND(arr, x) END",
++                )
++                self.assertEqual(
++                    expr.sql("postgres"),
++                    "CASE WHEN arr IS NULL THEN NULL ELSE ARRAY_APPEND(arr, x) END",
++                )
++
++        # Test array creation semantics: array-creating dialects → NULL-propagating dialects
++        for source_dialect, source_sql in (
++            ("duckdb", "LIST_APPEND(arr, x)"),
++            ("postgres", "ARRAY_APPEND(arr, x)"),
++        ):
++            with self.subTest(f"Array creation: {source_dialect} → Snowflake/Databricks/Spark"):
++                expr = parse_one(source_sql, dialect=source_dialect)
++                self.assertEqual(
++                    expr.sql("snowflake"),
++                    "ARRAY_APPEND(COALESCE(arr, []), x)",
++                )
++                self.assertEqual(
++                    expr.sql("databricks"),
++                    "ARRAY_APPEND(COALESCE(arr, ARRAY()), x)",
++                )
++                self.assertEqual(
++                    expr.sql("spark"),
++                    "ARRAY_APPEND(COALESCE(arr, ARRAY()), x)",
++                )
++
++        # Test identity transpilation (should NOT add wrappers)
++        for dialect, sql in (
++            ("duckdb", "LIST_APPEND(arr, x)"),
++            ("postgres", "ARRAY_APPEND(arr, x)"),
++            ("snowflake", "ARRAY_APPEND(arr, x)"),
++            ("databricks", "ARRAY_APPEND(arr, x)"),
++            ("spark", "ARRAY_APPEND(arr, x)"),
++        ):
++            with self.subTest(f"Identity: {dialect} → {dialect}"):
++                expr = parse_one(sql, dialect=dialect)
++                self.assertEqual(expr.sql(dialect), sql)
++
+     def test_order_by(self):
+         self.validate_identity(
+             "SELECT c FROM t ORDER BY a, b,",

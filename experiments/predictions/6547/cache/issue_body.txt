@@ -1,0 +1,30 @@
+Add support for `UNIFORM`
+
+
+**Snowflake**
+Docs: https://docs.snowflake.com/en/sql-reference/functions/uniform
+UNIFORM(min, max, gen)
+```
+>>> parse_one("UNIFORM(1, 10, 5)", "snowflake")
+Uniform(
+  this=Literal(this=1, is_string=False),
+  expression=Literal(this=10, is_string=False),
+  gen=Literal(this=5, is_string=False))
+```
+
+
+**Databricks**
+Docs: https://docs.databricks.com/aws/en/sql/language-manual/functions/uniform
+uniform (boundaryExpr1, boundaryExpr2 [, seed] )
+
+```
+>>> parse_one("UNIFORM(1, 10, 5)", "databricks")
+Uniform(
+  this=Literal(this=1, is_string=False),
+  expression=Literal(this=10, is_string=False),
+  seed=Literal(this=5, is_string=False))
+>>> parse_one("UNIFORM(1, 10)", "databricks")
+Uniform(
+  this=Literal(this=1, is_string=False),
+  expression=Literal(this=10, is_string=False))
+```

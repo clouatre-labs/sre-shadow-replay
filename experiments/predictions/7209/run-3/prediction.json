@@ -1,0 +1,9 @@
+{
+  "pr_number": 7209,
+  "run_id": "run-3",
+  "predicted_files": [
+    "sqlglot/dialects/clickhouse.py",
+    "sqlglot/expressions/functions.py",
+    "tests/dialects/test_clickhouse.py"
+  ]
+}

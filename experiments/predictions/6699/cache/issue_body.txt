@@ -1,0 +1,7 @@
+Fixes #6696
+
+**DOCS**
+[LTRIM Spark](https://spark.apache.org/docs/latest/api/sql/index.html#ltrim)
+[RTRIM Spark](https://spark.apache.org/docs/latest/api/sql/index.html#rtrim)
+[LTRIM Databricks](https://docs.databricks.com/gcp/en/sql/language-manual/functions/ltrim)
+[RTRIM Databricks](https://docs.databricks.com/gcp/en/sql/language-manual/functions/rtrim)
