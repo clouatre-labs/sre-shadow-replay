@@ -72,7 +72,9 @@ The sample size is driven by resource constraints: at ~$0.15 per replay (Claude 
 
 ## Agent Configuration
 
-The agent runs via Goose in headless (non-interactive) mode with the following configuration, pinned in `recipe/goose-headless-replay.yaml`:
+### Goose Replay Agent
+
+The Goose replay agent runs via Goose in headless (non-interactive) mode with the following configuration, pinned in `recipe/goose-headless-replay.yaml`:
 
 - **Model**: Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`)
 - **Provider**: Amazon Bedrock (cross-region inference)
@@ -81,6 +83,19 @@ The agent runs via Goose in headless (non-interactive) mode with the following c
 - **System prompt**: instructs the agent to work only from the issue text and current codebase state
 
 The `developer` extension provides the agent with file read, file write, and shell execution capabilities. No `github`, `web`, or `search` extensions are loaded. This prevents the agent from accessing PR history, review comments, or linked issues via the GitHub API.
+
+### Direct-API File Prediction (predict.py)
+
+A second experimental condition runs Claude Sonnet 4.6 directly via the Bedrock `converse()` API without Goose tooling. This is the **file-prediction** experiment documented in `scripts/predict.py`.
+
+- **Model**: Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`, global cross-region inference profile)
+- **Provider**: Amazon Bedrock, `us-east-1`, `converse()` API
+- **System prompt**: instructs the model to output only a JSON object `{"predicted_files": [...]}` given an issue description and file tree
+- **Temperature**: 0.3 (identical to Goose replay for comparability)
+- **Context**: repository file tree at base commit (recursive) + scrubbed PR body
+- **No tool use**: the model receives all context in a single prompt; no shell or file-system access
+
+This condition tests whether a file-navigation oracle (direct API + full file tree) achieves higher recall than the Goose agent that must navigate the codebase using tools. The design isolates the navigation cost from the prediction cost.
 
 ---
 
@@ -92,15 +107,18 @@ Experiment parameters are defined in `params.json` at the repository root:
 {
   "provider": "aws_bedrock",
   "model": "global.anthropic.claude-sonnet-4-6",
+  "model_id": "global.anthropic.claude-sonnet-4-6",
   "pricing_input_per_mtok_usd": 3.00,
   "pricing_output_per_mtok_usd": 15.00,
   "replay_timeout_seconds": 600
 }
 ```
 
-This file serves as the single source of truth for provider, model, pricing, and timeout configuration. All scripts (`replay.sh`, `score.py`, `aggregate.py`) read from `params.json` at runtime. To reproduce this experiment with a different model or provider, edit `params.json` and rerun. Following the [DVC parameter file convention](https://dvc.org/doc/command-reference/params), which supports YAML, JSON, TOML, and Python formats; we use JSON for zero-dependency parsing with Python's standard library.
+This file serves as the single source of truth for provider, model, pricing, and timeout configuration. All scripts (`replay.sh`, `score.py`, `aggregate.py`, `predict.py`) read from `params.json` at runtime. To reproduce this experiment with a different model or provider, edit `params.json` and rerun. Following the [DVC parameter file convention](https://dvc.org/doc/command-reference/params), which supports YAML, JSON, TOML, and Python formats; we use JSON for zero-dependency parsing with Python's standard library.
 
 The recipe file (`recipe/goose-headless-replay.yaml`) duplicates the provider and model settings for use with `goose run --recipe`. Scripts read `params.json` directly rather than parsing the recipe YAML.
+
+`predict.py` reads the additional `model_id` field (Bedrock API model identifier) for the `converse()` call.
 
 ---
 
