@@ -1,0 +1,39 @@
+diff --git a/sqlglot/typing/__init__.py b/sqlglot/typing/__init__.py
+index 0ac1065f0c..8e1aac0972 100644
+--- a/sqlglot/typing/__init__.py
++++ b/sqlglot/typing/__init__.py
+@@ -205,6 +205,7 @@
+             exp.UnixToTimeStr,
+             exp.Upper,
+             exp.RawString,
++            exp.Space,
+         }
+     },
+     **{
+diff --git a/sqlglot/typing/snowflake.py b/sqlglot/typing/snowflake.py
+index 6cf4b56e6e..49046497ec 100644
+--- a/sqlglot/typing/snowflake.py
++++ b/sqlglot/typing/snowflake.py
+@@ -519,7 +519,6 @@ def _annotate_str_to_time(self: TypeAnnotator, expression: exp.StrToTime) -> exp
+             exp.SHA2,
+             exp.Soundex,
+             exp.SoundexP123,
+-            exp.Space,
+             exp.SplitPart,
+             exp.Translate,
+             exp.TryBase64DecodeString,
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index a5adea5d3f..938b0513d0 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -427,6 +427,10 @@ VARCHAR;
+ SHA2(tbl.str_col, tbl.int_col);
+ VARCHAR;
+ 
++# dialect: hive, spark2, spark, databricks
++SPACE(tbl.int_col);
++VARCHAR;
++
+ # dialect: spark2, spark, databricks
+ RANDN();
+ DOUBLE;

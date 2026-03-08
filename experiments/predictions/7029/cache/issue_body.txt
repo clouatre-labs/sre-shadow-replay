@@ -1,0 +1,30 @@
+When transpiling Snowflake to DuckDB, `SEQ` functions do not support being used in nested window functions with `GENERATOR`.
+
+Example:
+```
+-- Snowflake
+SELECT ROW_NUMBER() OVER (ORDER BY seq8()) FROM TABLE(GENERATOR(ROWCOUNT => 10));
+
+-- Before (Parser Error: window functions are not allowed in window definitions)
+SELECT ROW_NUMBER() OVER (ORDER BY (ROW_NUMBER() OVER (ORDER BY 1) - 1) % 18446744073709551616) FROM RANGE(10);
+```
+
+Solution
+When inside `TABLE(GENERATOR(...))` context, replace `SEQ` functions with a reference to the range column. This works because:
+- `GENERATOR(ROWCOUNT => N)` becomes `RANGE(N)` in DuckDB
+- `RANGE(N)` produces a column named `range` with values 0, 1, ..., N-1
+- `SEQ` functions produce the same 0-based sequence
+```
+-- After (valid DuckDB)
+SELECT ROW_NUMBER() OVER (ORDER BY range % 18446744073709551616) FROM RANGE(10);
+```
+
+Implementation Details
+- Uses `transforms.preprocess()` pattern on `exp.Select` (same pattern as MySQL, Redshift, Oracle, Teradata)
+- Detects `GENERATOR` context via `isinstance()` checks: TableFromRows → Generator
+- `_build_seq_expression()` shared by both `_seq_sql` and `_seq_to_range_in_generator`
+
+Limitations
+- Only applies when `SEQ` is inside `TABLE(GENERATOR(...))` context
+- `SEQ` outside `GENERATOR` still uses `ROW_NUMBER()` expansion
+- Multiple `SEQ` calls in same query have different semantics (Snowflake's seq is non-deterministic per call, DuckDB's range is a fixed column value)

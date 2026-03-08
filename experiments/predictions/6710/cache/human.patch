@@ -1,0 +1,165 @@
+diff --git a/sqlglot/dialects/oracle.py b/sqlglot/dialects/oracle.py
+index 47ff83b6c2..a54a4c7d04 100644
+--- a/sqlglot/dialects/oracle.py
++++ b/sqlglot/dialects/oracle.py
+@@ -450,3 +450,10 @@ def isascii_sql(self, expression: exp.IsAscii) -> str:
+ 
+         def interval_sql(self, expression: exp.Interval) -> str:
+             return f"{'INTERVAL ' if isinstance(expression.this, exp.Literal) else ''}{self.sql(expression, 'this')} {self.sql(expression, 'unit')}"
++
++        def columndef_sql(self, expression: exp.ColumnDef, sep: str = " ") -> str:
++            param_constraint = expression.find(exp.InOutColumnConstraint)
++            if param_constraint:
++                sep = f" {self.sql(param_constraint)} "
++                param_constraint.pop()
++            return super().columndef_sql(expression, sep)
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index d1ed28a011..f4c9480b7f 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -2134,6 +2134,11 @@ class ComputedColumnConstraint(ColumnConstraintKind):
+     arg_types = {"this": True, "persisted": False, "not_null": False, "data_type": False}
+ 
+ 
++# https://docs.oracle.com/en/database/other-databases/timesten/22.1/plsql-developer/examples-using-input-and-output-parameters-and-bind-variables.html#GUID-4B20426E-F93F-4835-88CB-6A79829A8D7F
++class InOutColumnConstraint(ColumnConstraintKind):
++    arg_types = {"input_": False, "output": False}
++
++
+ class Constraint(Expression):
+     arg_types = {"this": True, "expressions": True}
+ 
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index d4839fa643..5145a2750f 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -1158,6 +1158,19 @@ def uniquecolumnconstraint_sql(self, expression: exp.UniqueColumnConstraint) ->
+         options = f" {options}" if options else ""
+         return f"UNIQUE{nulls_sql}{this}{index_type}{on_conflict}{options}"
+ 
++    def inoutcolumnconstraint_sql(self, expression: exp.InOutColumnConstraint) -> str:
++        input_ = expression.args.get("input_")
++        output = expression.args.get("output")
++
++        if input_ and output:
++            return "IN OUT"
++        if input_:
++            return "IN"
++        if output:
++            return "OUT"
++
++        return ""
++
+     def createable_sql(self, expression: exp.Create, locations: t.DefaultDict) -> str:
+         return self.sql(expression, "this")
+ 
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 4f1e245895..db2c0f6a82 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -6254,6 +6254,9 @@ def _parse_column_def(
+                 not_null=self._match_pair(TokenType.NOT, TokenType.NULL),
+             )
+             constraints.append(self.expression(exp.ColumnConstraint, kind=constraint_kind))
++        elif not kind and self._match_set({TokenType.IN, TokenType.OUT}, advance=False):
++            constraints.append(self._parse_in_out())
++            kind = self._parse_types()
+         elif (
+             kind
+             and self._match(TokenType.ALIAS, advance=False)
+@@ -6447,6 +6450,16 @@ def _parse_unnamed_constraint(
+ 
+         return self.CONSTRAINT_PARSERS[constraint](self)
+ 
++    def _parse_in_out(self) -> exp.Expression:
++        input_ = self._match(TokenType.IN)
++        output = self._match(TokenType.OUT)
++
++        return self.expression(
++            exp.InOutColumnConstraint,
++            input_=input_,
++            output=output,
++        )
++
+     def _parse_unique_key(self) -> t.Optional[exp.Expression]:
+         return self._parse_id_var(any_token=False)
+ 
+diff --git a/sqlglot/tokens.py b/sqlglot/tokens.py
+index 56c5a682eb..21278b14ab 100644
+--- a/sqlglot/tokens.py
++++ b/sqlglot/tokens.py
+@@ -372,6 +372,7 @@ class TokenType(AutoName):
+     ORDER_SIBLINGS_BY = auto()
+     ORDERED = auto()
+     ORDINALITY = auto()
++    OUT = auto()
+     OUTER = auto()
+     OVER = auto()
+     OVERLAPS = auto()
+@@ -842,6 +843,7 @@ class Tokenizer(metaclass=_Tokenizer):
+         "XOR": TokenType.XOR,
+         "ORDER BY": TokenType.ORDER_BY,
+         "ORDINALITY": TokenType.ORDINALITY,
++        "OUT": TokenType.OUT,
+         "OUTER": TokenType.OUTER,
+         "OVER": TokenType.OVER,
+         "OVERLAPS": TokenType.OVERLAPS,
+diff --git a/tests/dialects/test_oracle.py b/tests/dialects/test_oracle.py
+index acebe93e77..b7e94f0c92 100644
+--- a/tests/dialects/test_oracle.py
++++ b/tests/dialects/test_oracle.py
+@@ -1,4 +1,4 @@
+-from sqlglot import exp, UnsupportedError, ParseError, parse_one
++from sqlglot import exp, UnsupportedError, ParseError, parse_one, parse
+ from tests.dialects.test_dialect import Validator
+ from sqlglot.optimizer.qualify import qualify
+ 
+@@ -823,3 +823,48 @@ def test_pseudocolumns(self):
+     def test_chr(self):
+         self.validate_identity("SELECT CHR(187 USING NCHAR_CS)")
+         self.validate_identity("SELECT CHR(187)")
++
++    def test_full_procedure(self):
++        sql = """
++        CREATE OR REPLACE PROCEDURE query_emp(
++            p_id     IN  VARCHAR2,
++            p_name   OUT VARCHAR2,
++            p_salary OUT NUMBER
++        ) AS
++        BEGIN
++            SELECT last_name, salary 
++            INTO p_name, p_salary
++            FROM employees
++            WHERE employee_id = p_id;
++        END;
++        """
++
++        expected_sqls = [
++            "CREATE OR REPLACE PROCEDURE query_emp(p_id IN VARCHAR2, p_name OUT VARCHAR2, p_salary OUT NUMBER) AS BEGIN SELECT last_name, salary INTO p_name, p_salary FROM employees WHERE employee_id = p_id",
++            "END",
++        ]
++
++        for expr, expected_sql in zip(parse(sql, read="oracle"), expected_sqls):
++            self.assertEqual(expr.sql(dialect="oracle"), expected_sql)
++
++        sql = """
++        CREATE OR REPLACE PROCEDURE test_proc (
++            a NUMBER,
++            b IN NUMBER,
++            c IN OUT NUMBER,
++            d OUT NUMBER
++        ) AS
++        BEGIN
++            c := c + a + b;
++            d := 42 + c;
++        END;
++        """
++
++        expected_sqls = [
++            "CREATE OR REPLACE PROCEDURE test_proc(a NUMBER, b IN NUMBER, c IN OUT NUMBER, d OUT NUMBER) AS BEGIN c := c + a + b",
++            "d := 42 + c",
++            "END",
++        ]
++
++        for expr, expected_sql in zip(parse(sql, read="oracle"), expected_sqls):
++            self.assertEqual(expr.sql(dialect="oracle"), expected_sql)

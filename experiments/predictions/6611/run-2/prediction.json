@@ -1,0 +1,11 @@
+{
+  "pr_number": 6611,
+  "run_id": "run-2",
+  "predicted_files": [
+    "sqlglot/tokens.py",
+    "sqlglot/parser.py",
+    "sqlglot/expressions.py",
+    "sqlglot/generator.py",
+    "tests/dialects/test_postgres.py"
+  ]
+}

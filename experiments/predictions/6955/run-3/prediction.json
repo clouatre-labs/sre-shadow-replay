@@ -1,0 +1,12 @@
+{
+  "pr_number": 6955,
+  "run_id": "run-3",
+  "predicted_files": [
+    "sqlglot/expressions.py",
+    "sqlglot/parser.py",
+    "sqlglot/generator.py",
+    "sqlglot/dialects/tsql.py",
+    "sqlglot/__init__.py",
+    "tests/dialects/test_tsql.py"
+  ]
+}

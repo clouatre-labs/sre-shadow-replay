@@ -1,0 +1,115 @@
+diff --git a/sqlglot/dialects/duckdb.py b/sqlglot/dialects/duckdb.py
+index 02f81610cf..8a09ae8a8b 100644
+--- a/sqlglot/dialects/duckdb.py
++++ b/sqlglot/dialects/duckdb.py
+@@ -1918,6 +1918,16 @@ class Generator(generator.Generator):
+             exp.ArrayContains: _array_contains_sql,
+             exp.ArrayFilter: rename_func("LIST_FILTER"),
+             exp.ArrayInsert: _array_insert_sql,
++            exp.ArrayPosition: lambda self, e: (
++                self.sql(
++                    exp.Sub(
++                        this=exp.ArrayPosition(this=e.this, expression=e.expression),
++                        expression=exp.Literal.number(1),
++                    )
++                )
++                if e.args.get("zero_based")
++                else self.func("ARRAY_POSITION", e.this, e.expression)
++            ),
+             exp.ArrayRemoveAt: _array_remove_at_sql,
+             exp.ArrayRemove: remove_from_array_using_filter,
+             exp.ArraySort: _array_sort_sql,
+diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py
+index 279542cf2c..38ef3cfefd 100644
+--- a/sqlglot/dialects/snowflake.py
++++ b/sqlglot/dialects/snowflake.py
+@@ -842,6 +842,11 @@ class Parser(parser.Parser):
+                 step=seq_get(args, 2),
+                 is_end_exclusive=True,
+             ),
++            "ARRAY_POSITION": lambda args: exp.ArrayPosition(
++                this=seq_get(args, 1),
++                expression=seq_get(args, 0),
++                zero_based=True,
++            ),
+             "ARRAY_SORT": exp.SortArray.from_arg_list,
+             "ARRAY_FLATTEN": exp.Flatten.from_arg_list,
+             "BITAND": _build_bitwise(exp.BitwiseAnd, "BITAND"),
+@@ -1634,6 +1639,11 @@ class Generator(generator.Generator):
+                 else exp.cast(e.expression, exp.DType.VARIANT, copy=False),
+                 e.this,
+             ),
++            exp.ArrayPosition: lambda self, e: self.func(
++                "ARRAY_POSITION",
++                e.expression,
++                e.this,
++            ),
+             exp.ArrayIntersect: rename_func("ARRAY_INTERSECTION"),
+             exp.AtTimeZone: lambda self, e: self.func(
+                 "CONVERT_TIMEZONE", e.args.get("zone"), e.this
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 7c8b675744..d4eb849cd6 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -6303,6 +6303,10 @@ class ArrayLast(Func):
+     pass
+ 
+ 
++class ArrayPosition(Binary, Func):
++    arg_types = {"this": True, "expression": True, "zero_based": False}
++
++
+ class ArrayReverse(Func):
+     pass
+ 
+diff --git a/tests/dialects/test_dialect.py b/tests/dialects/test_dialect.py
+index 6e258e9a46..2fb4bc35ae 100644
+--- a/tests/dialects/test_dialect.py
++++ b/tests/dialects/test_dialect.py
+@@ -1760,6 +1760,26 @@ def test_array(self):
+             },
+         )
+ 
++        self.validate_all(
++            "SELECT ARRAY_POSITION(ARRAY(1, 2, 3), 2)",
++            read={
++                "spark": "SELECT array_position(array(1, 2, 3), 2)",
++                "databricks": "SELECT array_position(array(1, 2, 3), 2)",
++                "trino": "SELECT array_position(array[1, 2, 3], 2)",
++                "presto": "SELECT array_position(array[1, 2, 3], 2)",
++                "athena": "SELECT array_position(array[1, 2, 3], 2)",
++            },
++            write={
++                "snowflake": "SELECT ARRAY_POSITION(2, [1, 2, 3])",
++                "spark": "SELECT ARRAY_POSITION(ARRAY(1, 2, 3), 2)",
++                "databricks": "SELECT ARRAY_POSITION(ARRAY(1, 2, 3), 2)",
++                "trino": "SELECT ARRAY_POSITION(ARRAY[1, 2, 3], 2)",
++                "presto": "SELECT ARRAY_POSITION(ARRAY[1, 2, 3], 2)",
++                "athena": "SELECT ARRAY_POSITION(ARRAY[1, 2, 3], 2)",
++                "duckdb": "SELECT ARRAY_POSITION([1, 2, 3], 2)",
++            },
++        )
++
+     def test_order_by(self):
+         self.validate_identity(
+             "SELECT c FROM t ORDER BY a, b,",
+diff --git a/tests/dialects/test_snowflake.py b/tests/dialects/test_snowflake.py
+index 1ff0467635..a4dd54947d 100644
+--- a/tests/dialects/test_snowflake.py
++++ b/tests/dialects/test_snowflake.py
+@@ -6229,6 +6229,15 @@ def test_array_except(self):
+             },
+         )
+ 
++    def test_array_position(self):
++        self.validate_all(
++            "SELECT ARRAY_POSITION(2, ARRAY_CONSTRUCT(1, 2, 3))",
++            write={
++                "snowflake": "SELECT ARRAY_POSITION(2, [1, 2, 3])",
++                "duckdb": "SELECT ARRAY_POSITION([1, 2, 3], 2) - 1",
++            },
++        )
++
+     def test_space(self):
+         # Integer literal
+         self.validate_all(

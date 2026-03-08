@@ -1,0 +1,51 @@
+- BigQuery:
+```SQL
+bq> SELECT 
+  DATE(TIMESTAMP '2013-12-25', 'America/Los_Angeles') AS c1,      # --> '2013-12-24 16:00:00-08'::DATE
+  DATE('2013-12-25 09:00:00', 'America/Los_Angeles') AS c2,       # --> '2013-12-25 01:00:00-08'::DATE
+  DATE(TIMESTAMP '2024-01-15 23:30:00', 'Europe/Berlin') AS c3;   # --> '2024-01-16 01:30:00+01'::DATE
+
+c1	c2	c3
+2013-12-24	2013-12-25	2024-01-16
+```
+
+<br />
+
+- DuckDB before this PR:
+```SQL
+D SELECT
+    STRPTIME(STRFTIME(CAST(CAST('2013-12-25' AS TIMESTAMPTZ) AS DATE), '%d/%m/%Y') || ' ' || 'America/Los_Angeles', '%d/%m/%Y %Z') AS c1,
+    STRPTIME(STRFTIME(CAST('2013-12-25 09:00:00' AS DATE), '%d/%m/%Y') || ' ' || 'America/Los_Angeles', '%d/%m/%Y %Z') AS c2,
+    STRPTIME(STRFTIME(CAST(CAST('2024-01-15 23:30:00' AS TIMESTAMPTZ) AS DATE), '%d/%m/%Y') || ' ' || 'Europe/Berlin', '%d/%m/%Y %Z') AS c3;
+
+┌──────────────────────────┬──────────────────────────┬──────────────────────────┐
+│            c1            │            c2            │            c3            │
+│ timestamp with time zone │ timestamp with time zone │ timestamp with time zone │
+├──────────────────────────┼──────────────────────────┼──────────────────────────┤
+│ 2013-12-25 08:00:00+00   │ 2013-12-25 08:00:00+00   │ 2024-01-14 23:00:00+00   │
+└──────────────────────────┴──────────────────────────┴──────────────────────────┘
+
+```
+
+<br />
+
+- DuckDB after this PR:
+
+```SQL
+D SELECT
+    CAST(CAST(CAST('2013-12-25' AS TIMESTAMPTZ) AS TIMESTAMP) AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles' AS DATE) AS c1,
+    CAST(CAST('2013-12-25 09:00:00' AS TIMESTAMP) AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles' AS DATE) AS c2,
+    CAST(CAST(CAST('2024-01-15 23:30:00' AS TIMESTAMPTZ) AS TIMESTAMP) AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin' AS DATE) AS c3;
+
+┌────────────┬────────────┬────────────┐
+│     c1     │     c2     │     c3     │
+│    date    │    date    │    date    │
+├────────────┼────────────┼────────────┤
+│ 2013-12-24 │ 2013-12-25 │ 2024-01-16 │
+└────────────┴────────────┴────────────┘
+```
+
+
+Docs
+---------
+[BQ DATE](https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#date) | [DuckDB AT TIME ZONE](https://duckdb.org/docs/stable/sql/functions/timestamptz#timezonetext-timestamp)

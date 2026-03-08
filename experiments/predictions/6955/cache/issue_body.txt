@@ -1,0 +1,41 @@
+This PR adds parsing support for TSQL stored procedures.
+
+In order to chunkify the input, we use the semicolon as the delimiter.
+Each statement of the procedure is expected to have a semicolon at the end.
+If the `BEGIN/END `is used for the batching of statements, the `END` must be followed by a semicolon again (if there are statements after it).
+
+The parentheses of `IF/WHILE` statements aren't kept to the transpiled output.
+Moreover, arbitrary nesting is supported for `IF/ELSE` and `WHILE` statements.
+
+**What the API of sqglots returns now:**
+
+1. `parse` & `parse_into` return the same structure as before.
+2. `parse_one`
+    a. if the input contains a single statement, the parser returns the same result as before (single expression).
+    b. if the input contains more than 1 statement, the parser returns an `exp.Block`, containing all the statements in its `expressions` arg
+
+Example:
+```
+Single statement
+Input:
+SELECT 1
+
+AST Output:
+Select(
+  expressions=[
+    Literal(this=1, is_string=False)])
+
+Multiple statements:
+Input:
+SELECT 1; SELECT 2;
+
+AST Output:
+Block(
+  expressions=[
+    Select(
+      expressions=[
+        Literal(this=1, is_string=False)]),
+    Select(
+      expressions=[
+        Literal(this=2, is_string=False)])])
+```

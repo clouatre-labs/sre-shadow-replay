@@ -1,0 +1,169 @@
+diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py
+index cd443d1242..a73347bc47 100644
+--- a/sqlglot/dialects/dialect.py
++++ b/sqlglot/dialects/dialect.py
+@@ -13,6 +13,7 @@
+ from sqlglot.errors import ParseError
+ from sqlglot.generator import Generator, unsupported_args
+ from sqlglot.helper import (
++    apply_index_offset,
+     AutoName,
+     flatten,
+     is_int,
+@@ -1217,6 +1218,19 @@ def rename_func(name: str) -> t.Callable[[Generator, exp.Expression], str]:
+     return lambda self, expression: self.func(name, *flatten(expression.args.values()))
+ 
+ 
++def bracket_to_element_at_sql(self: Generator, expression: exp.Bracket) -> str:
++    index = seq_get(
++        apply_index_offset(
++            expression.this,
++            expression.expressions,
++            1 - expression.args.get("offset", 0),
++            dialect=self.dialect,
++        ),
++        0,
++    )
++    return self.func("ELEMENT_AT", expression.this, index)
++
++
+ @unsupported_args("accuracy")
+ def approx_count_distinct_sql(self: Generator, expression: exp.ApproxDistinct) -> str:
+     return self.func("APPROX_COUNT_DISTINCT", expression.this)
+diff --git a/sqlglot/dialects/presto.py b/sqlglot/dialects/presto.py
+index a576dd3636..a6788365d1 100644
+--- a/sqlglot/dialects/presto.py
++++ b/sqlglot/dialects/presto.py
+@@ -8,6 +8,7 @@
+     NormalizationStrategy,
+     binary_from_function,
+     bool_xor_sql,
++    bracket_to_element_at_sql,
+     build_replace_with_optional_replacement,
+     date_trunc_to_time,
+     datestrtodate_sql,
+@@ -35,7 +36,7 @@
+ )
+ from sqlglot.dialects.hive import Hive
+ from sqlglot.dialects.mysql import MySQL
+-from sqlglot.helper import apply_index_offset, seq_get
++from sqlglot.helper import seq_get
+ from sqlglot.optimizer.scope import find_all_in_scope
+ from sqlglot.tokens import TokenType
+ from sqlglot.transforms import unqualify_columns
+@@ -699,19 +700,7 @@ def strtounix_sql(self, expression: exp.StrToUnix) -> str:
+ 
+         def bracket_sql(self, expression: exp.Bracket) -> str:
+             if expression.args.get("safe"):
+-                return self.func(
+-                    "ELEMENT_AT",
+-                    expression.this,
+-                    seq_get(
+-                        apply_index_offset(
+-                            expression.this,
+-                            expression.expressions,
+-                            1 - expression.args.get("offset", 0),
+-                            dialect=self.dialect,
+-                        ),
+-                        0,
+-                    ),
+-                )
++                return bracket_to_element_at_sql(self, expression)
+             return super().bracket_sql(expression)
+ 
+         def struct_sql(self, expression: exp.Struct) -> str:
+diff --git a/sqlglot/dialects/spark2.py b/sqlglot/dialects/spark2.py
+index aea6aac89f..1a7db0d15c 100644
+--- a/sqlglot/dialects/spark2.py
++++ b/sqlglot/dialects/spark2.py
+@@ -5,6 +5,7 @@
+ from sqlglot import exp, transforms
+ from sqlglot.dialects.dialect import (
+     binary_from_function,
++    bracket_to_element_at_sql,
+     build_formatted_time,
+     is_parse_json,
+     pivot_column_names,
+@@ -12,7 +13,7 @@
+     unit_to_str,
+ )
+ from sqlglot.dialects.hive import Hive
+-from sqlglot.helper import seq_get
++from sqlglot.helper import ensure_list, seq_get
+ from sqlglot.parser import build_trim
+ from sqlglot.tokens import TokenType
+ from sqlglot.transforms import (
+@@ -148,6 +149,12 @@ class Parser(Hive.Parser):
+             "DAYOFWEEK": lambda args: exp.DayOfWeek(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
+             "DAYOFYEAR": lambda args: exp.DayOfYear(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
+             "DOUBLE": _build_as_cast("double"),
++            "ELEMENT_AT": lambda args: exp.Bracket(
++                this=seq_get(args, 0),
++                expressions=ensure_list(seq_get(args, 1)),
++                offset=1,
++                safe=False,
++            ),
+             "FLOAT": _build_as_cast("float"),
+             "FORMAT_STRING": exp.Format.from_arg_list,
+             "FROM_UTC_TIMESTAMP": lambda args, dialect: exp.AtTimeZone(
+@@ -345,3 +352,9 @@ def altercolumn_sql(self, expression: exp.AlterColumn) -> str:
+ 
+         def renamecolumn_sql(self, expression: exp.RenameColumn) -> str:
+             return super(Hive.Generator, self).renamecolumn_sql(expression)
++
++        def bracket_sql(self, expression: exp.Bracket) -> str:
++            if expression.args.get("safe") is False:
++                return bracket_to_element_at_sql(self, expression)
++
++            return super().bracket_sql(expression)
+diff --git a/tests/dialects/test_spark.py b/tests/dialects/test_spark.py
+index 01e3f9c1c0..da682ee80f 100644
+--- a/tests/dialects/test_spark.py
++++ b/tests/dialects/test_spark.py
+@@ -389,6 +389,19 @@ def test_spark(self):
+             },
+         )
+ 
++        self.validate_all(
++            "SELECT ELEMENT_AT(ARRAY(1, 2, 3), 1)",
++            read={
++                "spark2": "SELECT ELEMENT_AT(ARRAY(1, 2, 3), 1)",
++                "spark": "SELECT ELEMENT_AT(ARRAY(1, 2, 3), 1)",
++                "databricks": "SELECT ELEMENT_AT(ARRAY(1, 2, 3), 1)",
++            },
++            write={
++                "spark2": "SELECT ELEMENT_AT(ARRAY(1, 2, 3), 1)",
++                "databricks": "SELECT ELEMENT_AT(ARRAY(1, 2, 3), 1)",
++            },
++        )
++
+         self.validate_all(
+             "SELECT h.id, amount FROM hourlycostagg h LATERAL VIEW inline(h.costs) c",
+             write={
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index f614971d92..b762017b0d 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -831,6 +831,22 @@ INT;
+ BIT_OR(tbl.bigint_col);
+ BIGINT;
+ 
++# dialect: spark2, spark, databricks
++ELEMENT_AT(ARRAY(1, 2, 3), 1);
++INT;
++
++# dialect: spark2, spark, databricks
++ELEMENT_AT(ARRAY('1', '2','3'), 1);
++STRING;
++
++# dialect: spark2, spark, databricks
++ELEMENT_AT(MAP('a', 1, 'b', 2,'c', 3), 'b');
++INT;
++
++# dialect: spark2, spark, databricks
++ELEMENT_AT(MAP('a', 'k1', 'b', 'k2', 'c', 'k3'), 'b');
++STRING;
++
+ # dialect: spark, databricks
+ BIT_AND(tbl.int_col);
+ INT;

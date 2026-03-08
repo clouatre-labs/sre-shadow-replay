@@ -1,0 +1,38 @@
+{
+  "pr_number": 6595,
+  "run_id": "run-2",
+  "agent_files": [
+    "sqlglot/dialects/bigquery.py",
+    "sqlglot/dialects/duckdb.py",
+    "tests/dialects/test_bigquery.py",
+    "tests/dialects/test_duckdb.py"
+  ],
+  "human_files": [
+    "sqlglot/dialects/duckdb.py",
+    "tests/dialects/test_duckdb.py"
+  ],
+  "intersection": [
+    "sqlglot/dialects/duckdb.py",
+    "tests/dialects/test_duckdb.py"
+  ],
+  "precision": 0.5,
+  "recall": 1.0,
+  "jaccard": 0.5,
+  "f1": 0.6667,
+  "scope_creep": [
+    "sqlglot/dialects/bigquery.py",
+    "tests/dialects/test_bigquery.py"
+  ],
+  "scope_creep_count": 2,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:41+00:00",
+  "end_ts": "2026-03-08T14:50:44+00:00",
+  "wall_clock_seconds": 3,
+  "latency_ms": 1380,
+  "input_tokens": 4223,
+  "output_tokens": 63,
+  "cost_usd": 0.013614,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

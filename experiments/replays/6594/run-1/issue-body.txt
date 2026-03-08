@@ -1,5 +1,0 @@
-https://docs.snowflake.com/en/sql-reference/functions/try_to_boolean
-
-DuckDB's TRY_CAST can handle almost all the  valid strings that can be parsed by Snowlflake's TRY_TO_BOOLEAN to be true or false. The exceptions are 'on', 'off' which aren't considered valid by DuckDB's TRY_CAST so we need to handle them specifically. For invalid strings, TRY_CAST returns NULL, just like TRY_TO_BOOLEAN.
-
-The one thing that is not addresses here is the NULL input. While it's not documented by Snowflake, TRY_TO_BOOLEAN will throw an error if the input is NULL, but DuckDb's TRY_CAST will return NULL. @georgesittas should we handle this case as well?

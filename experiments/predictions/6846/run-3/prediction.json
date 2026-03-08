@@ -1,0 +1,8 @@
+{
+  "pr_number": 6846,
+  "run_id": "run-3",
+  "predicted_files": [
+    "sqlglot/dialects/snowflake.py",
+    "tests/dialects/test_snowflake.py"
+  ]
+}

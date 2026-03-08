@@ -1,0 +1,12 @@
+{
+  "start_ts": "2026-03-08T14:51:04+00:00",
+  "end_ts": "2026-03-08T14:51:07+00:00",
+  "wall_clock_seconds": 2,
+  "latency_ms": 2151,
+  "input_tokens": 3428,
+  "output_tokens": 101,
+  "cost_usd": 0.011799,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6",
+  "model_id": "global.anthropic.claude-sonnet-4-6"
+}

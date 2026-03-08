@@ -1,0 +1,22 @@
+There were 2 issues encountered while transpiling ARRAY_POSITION from Snowflake to Duckdb:
+
+Issue 2: Parameter Order Mismatch
+Snowflake: ARRAY_POSITION(element, array) - search element first
+DuckDB: ARRAY_POSITION(array, element) - array first
+Current transpilation preserves Snowflake order, which is incorrect for DuckDB
+
+Issue 3: Index Base Mismatch
+Snowflake: 0-based indexing (first element = 0)
+DuckDB: 1-based indexing (first element = 1)
+Direct transpilation will return wrong positions (off by 1)
+
+Transpiled Query:
+```
+duckdb -c "SELECT ARRAY_POSITION(['hello', 'world', 'hello'], CAST('hello' AS VARIANT)) - 1 AS string_first_occurrence, ARRAY_POSITION(['hello', 'world', 'hello'], CAST('world' AS VARIANT)) - 1 AS string_middle, ARRAY_POSITION(['hello', 'world'], CAST('missing' AS VARIANT)) - 1 AS string_not_found, ARRAY_POSITION([1, 2, 3, 2], CAST(2 AS VARIANT)) - 1 AS int_first_occurrence, ARRAY_POSITION([1, 2, 3], CAST(5 AS VARIANT)) - 1 AS int_not_found, ARRAY_POSITION([1.5, 2.5, 3.5], CAST(2.5 AS VARIANT)) - 1 AS float_match, ARRAY_POSITION([1, NULL, 3], CAST(NULL AS VARIANT)) - 1 AS null_in_array, ARRAY_POSITION([NULL, 2, 3], CAST(1 AS VARIANT)) - 1 AS search_in_array_with_null, ARRAY_POSITION([0, 1, 2], CAST(0 AS VARIANT)) - 1 AS zero_value"  
+┌─────────────────────────┬───────────────┬──────────────────┬──────────────────────┬───────────────┬─────────────┬───────────────┬───────────────────────────┬────────────┐
+│ string_first_occurrence │ string_middle │ string_not_found │ int_first_occurrence │ int_not_found │ float_match │ null_in_array │ search_in_array_with_null │ zero_value │
+│          int32          │     int32     │      int32       │        int32         │     int32     │    int32    │     int32     │           int32           │   int32    │
+├─────────────────────────┼───────────────┼──────────────────┼──────────────────────┼───────────────┼─────────────┼───────────────┼───────────────────────────┼────────────┤
+│            0            │       1       │       NULL       │          1           │     NULL      │      1      │       1       │           NULL            │     0      │
+└─────────────────────────┴───────────────┴──────────────────┴──────────────────────┴───────────────┴─────────────┴───────────────┴───────────────────────────┴────────────┘
+```

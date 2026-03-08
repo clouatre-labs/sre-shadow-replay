@@ -1,0 +1,43 @@
+{
+  "pr_number": 6611,
+  "run_id": "run-3",
+  "agent_files": [
+    "sqlglot/expressions.py",
+    "sqlglot/generator.py",
+    "sqlglot/parser.py",
+    "sqlglot/tokens.py",
+    "tests/dialects/test_postgres.py"
+  ],
+  "human_files": [
+    "sqlglot/expressions.py",
+    "sqlglot/generator.py",
+    "sqlglot/parser.py",
+    "sqlglot/tokens.py",
+    "tests/dialects/test_postgres.py",
+    "tests/fixtures/identity.sql"
+  ],
+  "intersection": [
+    "sqlglot/expressions.py",
+    "sqlglot/generator.py",
+    "sqlglot/parser.py",
+    "sqlglot/tokens.py",
+    "tests/dialects/test_postgres.py"
+  ],
+  "precision": 1.0,
+  "recall": 0.8333,
+  "jaccard": 0.8333,
+  "f1": 0.9091,
+  "scope_creep": [],
+  "scope_creep_count": 0,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:59+00:00",
+  "end_ts": "2026-03-08T14:51:02+00:00",
+  "wall_clock_seconds": 3,
+  "latency_ms": 1541,
+  "input_tokens": 3352,
+  "output_tokens": 57,
+  "cost_usd": 0.010911,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

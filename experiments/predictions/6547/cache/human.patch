@@ -1,0 +1,143 @@
+diff --git a/sqlglot/dialects/databricks.py b/sqlglot/dialects/databricks.py
+index b6fc155f17..90596b605c 100644
+--- a/sqlglot/dialects/databricks.py
++++ b/sqlglot/dialects/databricks.py
+@@ -12,6 +12,7 @@
+     groupconcat_sql,
+ )
+ from sqlglot.dialects.spark import Spark
++from sqlglot.helper import seq_get
+ from sqlglot.tokens import TokenType
+ from sqlglot.optimizer.annotate_types import TypeAnnotator
+ 
+@@ -59,6 +60,9 @@ class Parser(Spark.Parser):
+             "DATEDIFF": build_date_delta(exp.DateDiff),
+             "DATE_DIFF": build_date_delta(exp.DateDiff),
+             "TO_DATE": build_formatted_time(exp.TsOrDsToDate, "databricks"),
++            "UNIFORM": lambda args: exp.Uniform(
++                this=seq_get(args, 0), expression=seq_get(args, 1), seed=seq_get(args, 2)
++            ),
+         }
+ 
+         FACTOR = {
+@@ -146,3 +150,13 @@ def generatedasidentitycolumnconstraint_sql(
+         def jsonpath_sql(self, expression: exp.JSONPath) -> str:
+             expression.set("escape", None)
+             return super().jsonpath_sql(expression)
++
++        def uniform_sql(self, expression: exp.Uniform) -> str:
++            gen = expression.args.get("gen")
++            seed = expression.args.get("seed")
++
++            # From Snowflake UNIFORM(min, max, gen) as RANDOM(), RANDOM(seed), or constant value -> Extract seed
++            if gen:
++                seed = gen.this
++
++            return self.func("UNIFORM", expression.this, expression.expression, seed)
+diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py
+index 38f55b718c..f53a0849f5 100644
+--- a/sqlglot/dialects/snowflake.py
++++ b/sqlglot/dialects/snowflake.py
+@@ -1992,3 +1992,17 @@ def splitpart_sql(self, expression: exp.SplitPart) -> str:
+                 expression.set("part_index", exp.Literal.number(1))
+ 
+             return rename_func("SPLIT_PART")(self, expression)
++
++        def uniform_sql(self, expression: exp.Uniform) -> str:
++            gen = expression.args.get("gen")
++            seed = expression.args.get("seed")
++
++            # From Databricks UNIFORM(min, max, seed) -> Wrap gen in RANDOM(seed)
++            if seed:
++                gen = exp.Rand(this=seed)
++
++            # No gen argument (from Databricks 2-arg UNIFORM(min, max)) -> Add RANDOM()
++            if not gen:
++                gen = exp.Rand()
++
++            return self.func("UNIFORM", expression.this, expression.expression, gen)
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 8ff304f787..a06ce360c5 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -8104,6 +8104,10 @@ class Unicode(Func):
+     pass
+ 
+ 
++class Uniform(Func):
++    arg_types = {"this": True, "expression": True, "gen": False, "seed": False}
++
++
+ # https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#unix_date
+ class UnixDate(Func):
+     pass
+diff --git a/tests/dialects/test_databricks.py b/tests/dialects/test_databricks.py
+index 202866d61d..6f56402ce0 100644
+--- a/tests/dialects/test_databricks.py
++++ b/tests/dialects/test_databricks.py
+@@ -221,6 +221,20 @@ def test_databricks(self):
+         )
+         self.validate_identity("NTILE() OVER (ORDER BY 1)")
+         self.validate_identity("CURRENT_VERSION()")
++        self.validate_all(
++            "UNIFORM(1, 10, 5)",
++            write={
++                "snowflake": "UNIFORM(1, 10, RANDOM(5))",
++                "databricks": "UNIFORM(1, 10, 5)",
++            },
++        )
++        self.validate_all(
++            "UNIFORM(1, 10)",
++            write={
++                "databricks": "UNIFORM(1, 10)",
++                "snowflake": "UNIFORM(1, 10, RANDOM())",
++            },
++        )
+ 
+     # https://docs.databricks.com/sql/language-manual/functions/colonsign.html
+     def test_json(self):
+diff --git a/tests/dialects/test_snowflake.py b/tests/dialects/test_snowflake.py
+index 5e252d08a5..4a35e44ede 100644
+--- a/tests/dialects/test_snowflake.py
++++ b/tests/dialects/test_snowflake.py
+@@ -1873,6 +1873,29 @@ def test_snowflake(self):
+                 "duckdb": "CAST(6.43 AS DOUBLE)",
+             },
+         )
++        self.validate_all(
++            "UNIFORM(1, 10, RANDOM(5))",
++            write={
++                "snowflake": "UNIFORM(1, 10, RANDOM(5))",
++                "databricks": "UNIFORM(1, 10, 5)",
++            },
++        )
++        (
++            self.validate_all(
++                "UNIFORM(1, 10, RANDOM())",
++                write={
++                    "snowflake": "UNIFORM(1, 10, RANDOM())",
++                    "databricks": "UNIFORM(1, 10)",
++                },
++            ),
++        )
++        self.validate_all(
++            "UNIFORM(1, 10, 5)",
++            write={
++                "snowflake": "UNIFORM(1, 10, 5)",
++                "databricks": "UNIFORM(1, 10, 5)",
++            },
++        )
+ 
+     def test_null_treatment(self):
+         self.validate_all(
+diff --git a/tests/fixtures/identity.sql b/tests/fixtures/identity.sql
+index 71fa8c36b3..e08ff8b97b 100644
+--- a/tests/fixtures/identity.sql
++++ b/tests/fixtures/identity.sql
+@@ -949,3 +949,5 @@ SELECT analyze FROM (SELECT 1 AS analyze)
+ SELECT 'Ac' ILIKE 'a%c' ESCAPE NULL
+ SELECT CURRENT_DATABASE()
+ SELECT CURRENT_SCHEMAS(arg_bool)
++SELECT UNIFORM(1, 10, 5)
++SELECT UNIFORM(1, 10)
+\ No newline at end of file

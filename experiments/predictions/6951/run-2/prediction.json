@@ -1,0 +1,8 @@
+{
+  "pr_number": 6951,
+  "run_id": "run-2",
+  "predicted_files": [
+    "sqlglot/typing/presto.py",
+    "tests/fixtures/optimizer/annotate_functions.sql"
+  ]
+}

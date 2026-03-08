@@ -1,0 +1,11 @@
+{
+  "pr_number": 7117,
+  "run_id": "run-2",
+  "predicted_files": [
+    "sqlglot/parser.py",
+    "sqlglot/tokens.py",
+    "sqlglot/tokenizer_core.py",
+    "setup.cfg",
+    "setup.py"
+  ]
+}

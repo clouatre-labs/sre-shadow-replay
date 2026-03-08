@@ -1,0 +1,18 @@
+Follow-up to #6923 (numeric TRUNC support)
+
+Add dialect-specific generators for numeric TRUNC (exp.Trunc):
+
+- **Presto/Trino**: Use TRUNCATE (Presto's function name)
+- **ClickHouse**: Use lowercase `trunc` (ClickHouse convention)
+- **DuckDB**: Strip decimals arg (DuckDB only supports TRUNC(x))
+- **Hive/Spark**: Use CAST(x AS BIGINT) since no native numeric TRUNC
+
+For Hive/Spark, CAST to integral types truncates toward zero (does not round), matching TRUNC semantics: CAST(3.7 AS BIGINT) → 3, not 4. The decimals parameter is marked unsupported since the cast only produces integer output.
+
+Known limitations documented in code comments:
+
+- Presto/SQLite return DOUBLE/REAL from TRUNC even for integer truncation, creating a bidirectional transpilation gap affecting division semantics. Modeling precisely would require exp.FloatTrunc, deemed overengineering.
+
+- Hive/Spark could use a TRUNC_TEMPLATE with FLOOR/CEIL (Spark 3.3+) to preserve decimals, but current CAST approach is simpler.
+
+- A future `unsupported_args_unless_default` decorator could suppress warnings when decimals=0, the common case for DuckDB/SQLite/Hive/Spark.

@@ -1,0 +1,10 @@
+{
+  "pr_number": 6595,
+  "run_id": "run-1",
+  "predicted_files": [
+    "sqlglot/dialects/bigquery.py",
+    "sqlglot/dialects/duckdb.py",
+    "tests/dialects/test_bigquery.py",
+    "tests/dialects/test_duckdb.py"
+  ]
+}

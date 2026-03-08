@@ -1,0 +1,86 @@
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index b9692067a8..2a91ccafa6 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -5313,6 +5313,12 @@ class Sub(Binary):
+     pass
+ 
+ 
++# https://www.postgresql.org/docs/current/functions-range.html
++# Represents range adjacency operator: -|-
++class Adjacent(Binary):
++    pass
++
++
+ # Unary Expressions
+ # (NOT a)
+ class Unary(Condition):
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index f346ecab30..b5b6cd3cd7 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -112,6 +112,7 @@ class Generator(metaclass=_Generator):
+ 
+     TRANSFORMS: t.Dict[t.Type[exp.Expression], t.Callable[..., str]] = {
+         **JSON_PATH_PART_TRANSFORMS,
++        exp.Adjacent: lambda self, e: self.binary(e, "-|-"),
+         exp.AllowedValuesProperty: lambda self,
+         e: f"ALLOWED_VALUES {self.expressions(e, flat=True)}",
+         exp.AnalyzeColumns: lambda self, e: self.sql(e, "this"),
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 8716d4644a..441de7819d 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -987,6 +987,7 @@ class Parser(metaclass=_Parser):
+         TokenType.QMARK_AMP: binary_range_parser(exp.JSONBContainsAllTopKeys),
+         TokenType.QMARK_PIPE: binary_range_parser(exp.JSONBContainsAnyTopKeys),
+         TokenType.HASH_DASH: binary_range_parser(exp.JSONBDeleteAtPath),
++        TokenType.ADJACENT: binary_range_parser(exp.Adjacent),
+         TokenType.OPERATOR: lambda self, this: self._parse_operator(this),
+         TokenType.AMP_LT: binary_range_parser(exp.ExtendsLeft),
+         TokenType.AMP_GT: binary_range_parser(exp.ExtendsRight),
+diff --git a/sqlglot/tokens.py b/sqlglot/tokens.py
+index 909ee769aa..98c2e870e8 100644
+--- a/sqlglot/tokens.py
++++ b/sqlglot/tokens.py
+@@ -87,6 +87,7 @@ class TokenType(AutoName):
+     DAMP = auto()
+     AMP_LT = auto()
+     AMP_GT = auto()
++    ADJACENT = auto()
+     XOR = auto()
+     DSTAR = auto()
+     QMARK_AMP = auto()
+@@ -739,6 +740,7 @@ class Tokenizer(metaclass=_Tokenizer):
+         "~~": TokenType.LIKE,
+         "~~*": TokenType.ILIKE,
+         "~*": TokenType.IRLIKE,
++        "-|-": TokenType.ADJACENT,
+         "ALL": TokenType.ALL,
+         "AND": TokenType.AND,
+         "ANTI": TokenType.ANTI,
+diff --git a/tests/dialects/test_postgres.py b/tests/dialects/test_postgres.py
+index ef6cfcc909..bcccf4de62 100644
+--- a/tests/dialects/test_postgres.py
++++ b/tests/dialects/test_postgres.py
+@@ -1010,6 +1010,7 @@ def test_postgres(self):
+                 "postgres": "CREATE TABLE table1 (a INT, b INT, PRIMARY KEY (a))",
+             },
+         )
++        self.validate_identity("SELECT NUMRANGE(1.1, 2.2) -|- NUMRANGE(2.2, 3.3)")
+ 
+     def test_ddl(self):
+         # Checks that user-defined types are parsed into DataType instead of Identifier
+diff --git a/tests/fixtures/identity.sql b/tests/fixtures/identity.sql
+index 53a47440d3..6ae5c88ecc 100644
+--- a/tests/fixtures/identity.sql
++++ b/tests/fixtures/identity.sql
+@@ -951,4 +951,5 @@ SELECT CURRENT_DATABASE()
+ SELECT CURRENT_SCHEMAS(arg_bool)
+ SELECT UNIFORM(1, 10, 5)
+ SELECT UNIFORM(1, 10)
+-SELECT CURRENT_TIMEZONE()
+\ No newline at end of file
++SELECT CURRENT_TIMEZONE()
++SELECT NUMRANGE(1.1, 2.2) -|- NUMRANGE(2.2, 3.3)
+\ No newline at end of file

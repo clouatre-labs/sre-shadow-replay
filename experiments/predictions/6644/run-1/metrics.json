@@ -1,0 +1,40 @@
+{
+  "pr_number": 6644,
+  "run_id": "run-1",
+  "agent_files": [
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/dialects/snowflake.py",
+    "tests/dialects/test_duckdb.py",
+    "tests/dialects/test_snowflake.py"
+  ],
+  "human_files": [
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/dialects/snowflake.py",
+    "sqlglot/expressions.py",
+    "tests/dialects/test_snowflake.py"
+  ],
+  "intersection": [
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/dialects/snowflake.py",
+    "tests/dialects/test_snowflake.py"
+  ],
+  "precision": 0.75,
+  "recall": 0.75,
+  "jaccard": 0.6,
+  "f1": 0.75,
+  "scope_creep": [
+    "tests/dialects/test_duckdb.py"
+  ],
+  "scope_creep_count": 1,
+  "agent_empty": false,
+  "leakage_flag": false,
+  "start_ts": "2026-03-08T14:50:20+00:00",
+  "end_ts": "2026-03-08T14:50:22+00:00",
+  "wall_clock_seconds": 2,
+  "latency_ms": 1336,
+  "input_tokens": 4121,
+  "output_tokens": 65,
+  "cost_usd": 0.013338,
+  "provider": "aws_bedrock",
+  "model": "global.anthropic.claude-sonnet-4-6"
+}

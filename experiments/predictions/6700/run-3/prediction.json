@@ -1,0 +1,11 @@
+{
+  "pr_number": 6700,
+  "run_id": "run-3",
+  "predicted_files": [
+    "sqlglot/dialects/doris.py",
+    "sqlglot/dialects/starrocks.py",
+    "sqlglot/dialects/mysql.py",
+    "tests/dialects/test_doris.py",
+    "tests/dialects/test_starrocks.py"
+  ]
+}

@@ -1,0 +1,163 @@
+diff --git a/sqlglot/dialects/clickhouse.py b/sqlglot/dialects/clickhouse.py
+index dcc02264c9..d1798f7354 100644
+--- a/sqlglot/dialects/clickhouse.py
++++ b/sqlglot/dialects/clickhouse.py
+@@ -358,6 +358,8 @@ class Parser(parser.Parser):
+             "ANY": exp.AnyValue.from_arg_list,
+             "ARRAYCOMPACT": exp.ArrayCompact.from_arg_list,
+             "ARRAYSUM": exp.ArraySum.from_arg_list,
++            "ARRAYMAX": exp.ArrayMax.from_arg_list,
++            "ARRAYMIN": exp.ArrayMin.from_arg_list,
+             "ARRAYREVERSE": exp.ArrayReverse.from_arg_list,
+             "ARRAYSLICE": exp.ArraySlice.from_arg_list,
+             "CURRENTDATABASE": exp.CurrentDatabase.from_arg_list,
+@@ -1162,6 +1164,8 @@ class Generator(generator.Generator):
+             exp.ArrayReverse: rename_func("arrayReverse"),
+             exp.ArraySlice: rename_func("arraySlice"),
+             exp.ArraySum: rename_func("arraySum"),
++            exp.ArrayMax: rename_func("arrayMax"),
++            exp.ArrayMin: rename_func("arrayMin"),
+             exp.ArgMax: arg_max_or_min_no_count("argMax"),
+             exp.ArgMin: arg_max_or_min_no_count("argMin"),
+             exp.Array: inline_array_sql,
+diff --git a/sqlglot/dialects/duckdb.py b/sqlglot/dialects/duckdb.py
+index e3a70730a8..4370992b71 100644
+--- a/sqlglot/dialects/duckdb.py
++++ b/sqlglot/dialects/duckdb.py
+@@ -1628,6 +1628,8 @@ class Parser(parser.Parser):
+             "LIST_FILTER": exp.ArrayFilter.from_arg_list,
+             "LIST_HAS": exp.ArrayContains.from_arg_list,
+             "LIST_HAS_ANY": exp.ArrayOverlaps.from_arg_list,
++            "LIST_MAX": exp.ArrayMax.from_arg_list,
++            "LIST_MIN": exp.ArrayMin.from_arg_list,
+             "LIST_PREPEND": _build_array_prepend,
+             "LIST_REVERSE_SORT": _build_sort_array_desc,
+             "LIST_SORT": exp.SortArray.from_arg_list,
+@@ -1924,6 +1926,8 @@ class Generator(generator.Generator):
+             exp.ArraySort: _array_sort_sql,
+             exp.ArrayPrepend: array_append_sql("LIST_PREPEND", swap_params=True),
+             exp.ArraySum: rename_func("LIST_SUM"),
++            exp.ArrayMax: rename_func("LIST_MAX"),
++            exp.ArrayMin: rename_func("LIST_MIN"),
+             exp.ArrayUniqueAgg: lambda self, e: self.func(
+                 "LIST", exp.Distinct(expressions=[e.this])
+             ),
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 61367594b5..b0e6973a24 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -6240,6 +6240,14 @@ class ArrayDistinct(Func):
+     arg_types = {"this": True, "check_null": False}
+ 
+ 
++class ArrayMax(Func):
++    pass
++
++
++class ArrayMin(Func):
++    pass
++
++
+ class ArrayUnionAgg(AggFunc):
+     pass
+ 
+diff --git a/tests/dialects/test_dialect.py b/tests/dialects/test_dialect.py
+index b1a51eac57..a4c3be9abe 100644
+--- a/tests/dialects/test_dialect.py
++++ b/tests/dialects/test_dialect.py
+@@ -1691,6 +1691,56 @@ def test_array(self):
+         expr = parse_one("ARRAY_CAT(arr1)", dialect="snowflake")
+         self.assertEqual(expr.sql("duckdb"), "LIST_CONCAT(arr1)")
+ 
++        # Test ARRAY_MAX transpilation across dialects
++        self.validate_all(
++            "ARRAY_MAX(x)",
++            read={
++                "athena": "array_max(x)",
++                "clickhouse": "arrayMax(x)",
++                "databricks": "array_max(x)",
++                "duckdb": "list_max(x)",
++                "presto": "array_max(x)",
++                "snowflake": "ARRAY_MAX(x)",
++                "spark": "array_max(x)",
++                "trino": "array_max(x)",
++            },
++            write={
++                "athena": "ARRAY_MAX(x)",
++                "clickhouse": "arrayMax(x)",
++                "databricks": "ARRAY_MAX(x)",
++                "duckdb": "LIST_MAX(x)",
++                "presto": "ARRAY_MAX(x)",
++                "snowflake": "ARRAY_MAX(x)",
++                "spark": "ARRAY_MAX(x)",
++                "trino": "ARRAY_MAX(x)",
++            },
++        )
++
++        # Test ARRAY_MIN transpilation across dialects
++        self.validate_all(
++            "ARRAY_MIN(x)",
++            read={
++                "athena": "array_min(x)",
++                "clickhouse": "arrayMin(x)",
++                "databricks": "array_min(x)",
++                "duckdb": "list_min(x)",
++                "presto": "array_min(x)",
++                "snowflake": "ARRAY_MIN(x)",
++                "spark": "array_min(x)",
++                "trino": "array_min(x)",
++            },
++            write={
++                "athena": "ARRAY_MIN(x)",
++                "clickhouse": "arrayMin(x)",
++                "databricks": "ARRAY_MIN(x)",
++                "duckdb": "LIST_MIN(x)",
++                "presto": "ARRAY_MIN(x)",
++                "snowflake": "ARRAY_MIN(x)",
++                "spark": "ARRAY_MIN(x)",
++                "trino": "ARRAY_MIN(x)",
++            },
++        )
++
+     def test_order_by(self):
+         self.validate_identity(
+             "SELECT c FROM t ORDER BY a, b,",
+diff --git a/tests/dialects/test_duckdb.py b/tests/dialects/test_duckdb.py
+index a695439088..4ee873dfc7 100644
+--- a/tests/dialects/test_duckdb.py
++++ b/tests/dialects/test_duckdb.py
+@@ -938,6 +938,8 @@ def test_duckdb(self):
+                 "spark": "ARRAY_SUM(ARRAY(1, 2))",
+             },
+         )
++        self.validate_identity("SELECT LIST_MAX(values) FROM table1")
++        self.validate_identity("SELECT LIST_MIN(values) FROM table1")
+         self.validate_all(
+             "STRUCT_PACK(x := 1, y := '2')",
+             write={
+diff --git a/tests/dialects/test_snowflake.py b/tests/dialects/test_snowflake.py
+index 5251dd6fe6..4a484ee80e 100644
+--- a/tests/dialects/test_snowflake.py
++++ b/tests/dialects/test_snowflake.py
+@@ -114,6 +114,21 @@ def test_snowflake(self):
+             "SELECT BITMAP_COUNT(BITMAP_CONSTRUCT_AGG(value)) FROM TABLE(FLATTEN(INPUT => ARRAY_CONSTRUCT(1, 2, 3, 5)))",
+             "SELECT BITMAP_COUNT(BITMAP_CONSTRUCT_AGG(value)) FROM TABLE(FLATTEN(INPUT => [1, 2, 3, 5]))",
+         )
++        self.validate_all(
++            "SELECT ARRAY_MAX([1, 2, 3])",
++            write={
++                "duckdb": "SELECT LIST_MAX([1, 2, 3])",
++                "snowflake": "SELECT ARRAY_MAX([1, 2, 3])",
++            },
++        )
++        self.validate_all(
++            "SELECT ARRAY_MIN([1, 2, 3])",
++            write={
++                "duckdb": "SELECT LIST_MIN([1, 2, 3])",
++                "snowflake": "SELECT ARRAY_MIN([1, 2, 3])",
++            },
++        )
++
+         self.validate_identity("SELECT BOOLAND(1, -2)")
+         self.validate_identity("SELECT BOOLXOR(2, 0)")
+         self.validate_identity("SELECT BOOLOR(1, 0)")

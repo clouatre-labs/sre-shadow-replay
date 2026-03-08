@@ -1,0 +1,19 @@
+{
+  "pr_number": 6961,
+  "run_id": "run-1",
+  "predicted_files": [
+    "sqlglot/dialects/presto.py",
+    "sqlglot/dialects/trino.py",
+    "sqlglot/dialects/clickhouse.py",
+    "sqlglot/dialects/duckdb.py",
+    "sqlglot/dialects/hive.py",
+    "sqlglot/dialects/spark.py",
+    "sqlglot/dialects/spark2.py",
+    "tests/dialects/test_presto.py",
+    "tests/dialects/test_trino.py",
+    "tests/dialects/test_clickhouse.py",
+    "tests/dialects/test_duckdb.py",
+    "tests/dialects/test_hive.py",
+    "tests/dialects/test_spark.py"
+  ]
+}

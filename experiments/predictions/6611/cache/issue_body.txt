@@ -1,0 +1,7 @@
+```sql
+numrange(1.1,2.2) -|- numrange(2.2,3.3)
+```
+
+[Postgres](https://www.postgresql.org/docs/current/functions-range.html#:~:text=anyrange%20%2D%7C%2D%20anyrange%20%E2%86%92%20boolean)
+
+should we support this to base parser as well?

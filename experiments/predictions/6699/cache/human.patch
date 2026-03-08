@@ -1,0 +1,206 @@
+diff --git a/sqlglot/dialects/hive.py b/sqlglot/dialects/hive.py
+index cadf45b1b3..4096464ce8 100644
+--- a/sqlglot/dialects/hive.py
++++ b/sqlglot/dialects/hive.py
+@@ -30,6 +30,7 @@
+     struct_extract_sql,
+     time_format,
+     timestrtotime_sql,
++    trim_sql,
+     unit_to_str,
+     var_map_sql,
+     sequence_sql,
+@@ -660,6 +661,7 @@ class Generator(generator.Generator):
+             exp.TsOrDsDiff: _date_diff_sql,
+             exp.TsOrDsToDate: _to_date_sql,
+             exp.TryCast: no_trycast_sql,
++            exp.Trim: trim_sql,
+             exp.Unicode: rename_func("ASCII"),
+             exp.UnixToStr: lambda self, e: self.func(
+                 "FROM_UNIXTIME", e.this, time_format("hive")(self, e)
+diff --git a/sqlglot/dialects/spark2.py b/sqlglot/dialects/spark2.py
+index d728decdc0..5b0903ff64 100644
+--- a/sqlglot/dialects/spark2.py
++++ b/sqlglot/dialects/spark2.py
+@@ -9,11 +9,11 @@
+     is_parse_json,
+     pivot_column_names,
+     rename_func,
+-    trim_sql,
+     unit_to_str,
+ )
+ from sqlglot.dialects.hive import Hive
+ from sqlglot.helper import seq_get
++from sqlglot.parser import build_trim
+ from sqlglot.tokens import TokenType
+ from sqlglot.transforms import (
+     preprocess,
+@@ -159,9 +159,11 @@ class Parser(Hive.Parser):
+                 ),
+                 zone=seq_get(args, 1),
+             ),
++            "LTRIM": lambda args: build_trim(args, reverse_args=True),
+             "INT": _build_as_cast("int"),
+             "MAP_FROM_ARRAYS": exp.Map.from_arg_list,
+             "RLIKE": exp.RegexpLike.from_arg_list,
++            "RTRIM": lambda args: build_trim(args, is_left=False, reverse_args=True),
+             "SHIFTLEFT": binary_from_function(exp.BitwiseLeftShift),
+             "SHIFTRIGHT": binary_from_function(exp.BitwiseRightShift),
+             "STRING": _build_as_cast("string"),
+@@ -288,7 +290,6 @@ class Generator(Hive.Generator):
+             exp.StrToDate: _str_to_date,
+             exp.StrToTime: lambda self, e: self.func("TO_TIMESTAMP", e.this, self.format_time(e)),
+             exp.TimestampTrunc: lambda self, e: self.func("DATE_TRUNC", unit_to_str(e), e.this),
+-            exp.Trim: trim_sql,
+             exp.UnixToTime: _unix_to_time_sql,
+             exp.VariancePop: rename_func("VAR_POP"),
+             exp.WeekOfYear: rename_func("WEEKOFYEAR"),
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 90e0dbee88..896772b571 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -155,12 +155,13 @@ def build_convert_timezone(
+     return exp.ConvertTimezone.from_arg_list(args)
+ 
+ 
+-def build_trim(args: t.List, is_left: bool = True):
+-    return exp.Trim(
+-        this=seq_get(args, 0),
+-        expression=seq_get(args, 1),
+-        position="LEADING" if is_left else "TRAILING",
+-    )
++def build_trim(args: t.List, is_left: bool = True, reverse_args: bool = False):
++    this, expression = seq_get(args, 0), seq_get(args, 1)
++
++    if expression and reverse_args:
++        this, expression = expression, this
++
++    return exp.Trim(this=this, expression=expression, position="LEADING" if is_left else "TRAILING")
+ 
+ 
+ def build_coalesce(
+diff --git a/tests/dialects/test_dialect.py b/tests/dialects/test_dialect.py
+index f304fef196..4a887088a1 100644
+--- a/tests/dialects/test_dialect.py
++++ b/tests/dialects/test_dialect.py
+@@ -3474,44 +3474,118 @@ def test_trim(self):
+             read={
+                 "bigquery": "TRIM('abc', 'a')",
+                 "snowflake": "TRIM('abc', 'a')",
++                "hive": "TRIM('abc', 'a')",
++                "spark2": "TRIM('a', 'abc')",
++                "spark": "TRIM('a', 'abc')",
++                "databricks": "TRIM('a', 'abc')",
+             },
+             write={
+                 "bigquery": "TRIM('abc', 'a')",
+                 "snowflake": "TRIM('abc', 'a')",
++                "hive": "TRIM('a' FROM 'abc')",
++                "spark2": "TRIM('a' FROM 'abc')",
++                "spark": "TRIM('a' FROM 'abc')",
++                "databricks": "TRIM('a' FROM 'abc')",
+             },
+         )
+ 
+         self.validate_all(
+             "LTRIM('Hello World', 'H')",
+             read={
++                "": "LTRIM('Hello World', 'H')",
+                 "oracle": "LTRIM('Hello World', 'H')",
+                 "clickhouse": "TRIM(LEADING 'H' FROM 'Hello World')",
+                 "snowflake": "LTRIM('Hello World', 'H')",
+                 "bigquery": "LTRIM('Hello World', 'H')",
+-                "": "LTRIM('Hello World', 'H')",
++                "hive": "LTRIM('Hello World', 'H')",
++                "spark2": "LTRIM('H', 'Hello World')",
++                "spark": "LTRIM('H', 'Hello World')",
++                "databricks": "LTRIM('H', 'Hello World')",
+             },
+             write={
+                 "clickhouse": "TRIM(LEADING 'H' FROM 'Hello World')",
+                 "oracle": "LTRIM('Hello World', 'H')",
+                 "snowflake": "LTRIM('Hello World', 'H')",
+                 "bigquery": "LTRIM('Hello World', 'H')",
++                "hive": "TRIM(LEADING 'H' FROM 'Hello World')",
++                "spark2": "TRIM(LEADING 'H' FROM 'Hello World')",
++                "spark": "TRIM(LEADING 'H' FROM 'Hello World')",
++                "databricks": "TRIM(LEADING 'H' FROM 'Hello World')",
+             },
+         )
+ 
+         self.validate_all(
+             "RTRIM('Hello World', 'd')",
+             read={
++                "": "RTRIM('Hello World', 'd')",
+                 "clickhouse": "TRIM(TRAILING 'd' FROM 'Hello World')",
+                 "oracle": "RTRIM('Hello World', 'd')",
+                 "snowflake": "RTRIM('Hello World', 'd')",
+                 "bigquery": "RTRIM('Hello World', 'd')",
+-                "": "RTRIM('Hello World', 'd')",
++                "hive": "RTRIM('Hello World', 'd')",
++                "spark2": "RTRIM('d', 'Hello World')",
++                "spark": "RTRIM('d', 'Hello World')",
++                "databricks": "RTRIM('d', 'Hello World')",
+             },
+             write={
+                 "clickhouse": "TRIM(TRAILING 'd' FROM 'Hello World')",
+                 "oracle": "RTRIM('Hello World', 'd')",
+                 "snowflake": "RTRIM('Hello World', 'd')",
+                 "bigquery": "RTRIM('Hello World', 'd')",
++                "hive": "TRIM(TRAILING 'd' FROM 'Hello World')",
++                "spark2": "TRIM(TRAILING 'd' FROM 'Hello World')",
++                "spark": "TRIM(TRAILING 'd' FROM 'Hello World')",
++                "databricks": "TRIM(TRAILING 'd' FROM 'Hello World')",
++            },
++        )
++
++        self.validate_all(
++            "LTRIM('Hello World')",
++            read={
++                "": "LTRIM('Hello World')",
++                "clickhouse": "LTRIM('Hello World')",
++                "oracle": "LTRIM('Hello World')",
++                "snowflake": "LTRIM('Hello World')",
++                "bigquery": "LTRIM('Hello World')",
++                "hive": "LTRIM('Hello World')",
++                "spark2": "LTRIM('Hello World')",
++                "spark": "LTRIM('Hello World')",
++                "databricks": "LTRIM('Hello World')",
++            },
++            write={
++                "clickhouse": "LTRIM('Hello World')",
++                "oracle": "LTRIM('Hello World')",
++                "snowflake": "LTRIM('Hello World')",
++                "bigquery": "LTRIM('Hello World')",
++                "hive": "LTRIM('Hello World')",
++                "spark2": "LTRIM('Hello World')",
++                "spark": "LTRIM('Hello World')",
++                "databricks": "LTRIM('Hello World')",
++            },
++        )
++
++        self.validate_all(
++            "RTRIM('Hello World')",
++            read={
++                "": "RTRIM('Hello World')",
++                "clickhouse": "RTRIM('Hello World')",
++                "oracle": "RTRIM('Hello World')",
++                "snowflake": "RTRIM('Hello World')",
++                "bigquery": "RTRIM('Hello World')",
++                "hive": "RTRIM('Hello World')",
++                "spark2": "RTRIM('Hello World')",
++                "spark": "RTRIM('Hello World')",
++                "databricks": "RTRIM('Hello World')",
++            },
++            write={
++                "clickhouse": "RTRIM('Hello World')",
++                "oracle": "RTRIM('Hello World')",
++                "snowflake": "RTRIM('Hello World')",
++                "bigquery": "RTRIM('Hello World')",
++                "hive": "RTRIM('Hello World')",
++                "spark2": "RTRIM('Hello World')",
++                "spark": "RTRIM('Hello World')",
++                "databricks": "RTRIM('Hello World')",
+             },
+         )
+ 

@@ -78,6 +78,10 @@ def compute_metrics(agent_files, human_files, pr_number, run_id):
 
     scope_creep = sorted(agent_files - human_files)
 
+    f1 = None
+    if precision is not None and recall is not None and (precision + recall) > 0:
+        f1 = 2 * precision * recall / (precision + recall)
+
     return {
         "pr_number": pr_number,
         "run_id": run_id,
@@ -87,6 +91,7 @@ def compute_metrics(agent_files, human_files, pr_number, run_id):
         "precision": round(precision, 4) if precision is not None else None,
         "recall": round(recall, 4) if recall is not None else None,
         "jaccard": round(jaccard, 4) if jaccard is not None else None,
+        "f1": round(f1, 4) if f1 is not None else None,
         "scope_creep": scope_creep,
         "scope_creep_count": len(scope_creep),
         "agent_empty": len(agent_files) == 0,
@@ -185,6 +190,7 @@ def run_tests():
     check("perfect precision", m["precision"], 1.0)
     check("perfect recall", m["recall"], 1.0)
     check("perfect jaccard", m["jaccard"], 1.0)
+    check("perfect f1", m["f1"], 1.0)
     check("perfect scope_creep_count", m["scope_creep_count"], 0)
 
     # Test 5: compute_metrics -- partial match (agent found 1 of 3 human files)
@@ -198,6 +204,7 @@ def run_tests():
     check("partial precision", m2["precision"], 1.0)
     check("partial recall", round(m2["recall"], 4), round(1 / 3, 4))
     check("partial jaccard", round(m2["jaccard"], 4), round(1 / 3, 4))
+    check("partial f1", round(m2["f1"], 4), round(2 * 1.0 * (1/3) / (1.0 + 1/3), 4))
     check("partial scope_creep_count", m2["scope_creep_count"], 0)
 
     # Test 6: compute_metrics -- scope creep (agent touched extra file)
@@ -206,6 +213,7 @@ def run_tests():
     m3 = compute_metrics(a3, h3, 7210, "run-1")
     check("scope_creep precision", round(m3["precision"], 4), 0.5)
     check("scope_creep recall", m3["recall"], 1.0)
+    check("scope_creep f1", round(m3["f1"], 4), round(2 * 0.5 * 1.0 / (0.5 + 1.0), 4))
     check("scope_creep list", m3["scope_creep"], ["sqlglot/extra.py"])
     check("scope_creep_count", m3["scope_creep_count"], 1)
 
@@ -214,6 +222,7 @@ def run_tests():
     check("empty agent precision", m4["precision"], None)
     check("empty agent recall", m4["recall"], 0.0)
     check("empty agent jaccard", m4["jaccard"], 0.0)
+    check("empty agent f1", m4["f1"], None)
     check("empty agent_empty flag", m4["agent_empty"], True)
 
     # Test 8: merge_timing -- timing.json present with token data
@@ -258,7 +267,7 @@ def run_tests():
         print(f"FAILED: {len(failures)} test(s)", file=sys.stderr)
         sys.exit(1)
     else:
-        print(f"OK: 13 checks passed")
+        print(f"OK: 17 checks passed")
         sys.exit(0)
 
 

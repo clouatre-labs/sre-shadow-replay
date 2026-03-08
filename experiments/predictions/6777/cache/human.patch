@@ -1,0 +1,128 @@
+diff --git a/sqlglot/dialects/bigquery.py b/sqlglot/dialects/bigquery.py
+index b950513093..f6cebce7b4 100644
+--- a/sqlglot/dialects/bigquery.py
++++ b/sqlglot/dialects/bigquery.py
+@@ -1070,17 +1070,20 @@ def _parse_column_ops(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.
+             func_index = self._index + 1
+             this = super()._parse_column_ops(this)
+ 
+-            if isinstance(this, exp.Dot) and isinstance(func := this.expression, exp.Func):
++            if isinstance(this, exp.Dot) and isinstance(this.expression, exp.Func):
+                 prefix = this.this.name.upper()
+ 
++                func: t.Optional[t.Type[exp.Func]] = None
+                 if prefix == "NET":
+-                    if func.name.upper() == "HOST":
+-                        this = self.expression(exp.NetHost, this=seq_get(func.expressions, 0))
++                    func = exp.NetFunc
+                 elif prefix == "SAFE":
++                    func = exp.SafeFunc
++
++                if func:
+                     # Retreat to try and parse a known function instead of an anonymous one,
+                     # which is parsed by the base column ops parser due to anonymous_func=true
+                     self._retreat(func_index)
+-                    this = exp.SafeFunc(this=self._parse_function(any_token=True))
++                    this = func(this=self._parse_function(any_token=True))
+ 
+             return this
+ 
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 75428e4d88..bff0c96d09 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -7656,9 +7656,19 @@ class Normal(Func):
+     arg_types = {"this": True, "stddev": True, "gen": True}
+ 
+ 
++# https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/net_functions
++class NetFunc(Func):
++    pass
++
++
+ # https://cloud.google.com/bigquery/docs/reference/standard-sql/net_functions#nethost
+-class NetHost(Func):
+-    _sql_names = ["NET.HOST"]
++class Host(Func):
++    pass
++
++
++# https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/net_functions#netreg_domain
++class RegDomain(Func):
++    pass
+ 
+ 
+ class Overlay(Func):
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index 20fc4bbf3c..78dd6c0fbb 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -170,6 +170,7 @@ class Generator(metaclass=_Generator):
+         exp.LocationProperty: lambda self, e: self.naked_property(e),
+         exp.LogProperty: lambda _, e: f"{'NO ' if e.args.get('no') else ''}LOG",
+         exp.MaterializedProperty: lambda *_: "MATERIALIZED",
++        exp.NetFunc: lambda self, e: f"NET.{self.sql(e, 'this')}",
+         exp.NonClusteredColumnConstraint: lambda self,
+         e: f"NONCLUSTERED ({self.expressions(e, 'this', indent=False)})",
+         exp.NoPrimaryIndexProperty: lambda *_: "NO PRIMARY INDEX",
+diff --git a/sqlglot/typing/bigquery.py b/sqlglot/typing/bigquery.py
+index 6e9c488b5a..7b50dd86f3 100644
+--- a/sqlglot/typing/bigquery.py
++++ b/sqlglot/typing/bigquery.py
+@@ -174,6 +174,7 @@ def _annotate_array(self: TypeAnnotator, expression: exp.Array) -> exp.Array:
+             exp.Lead,
+             exp.Left,
+             exp.Lower,
++            exp.NetFunc,
+             exp.NthValue,
+             exp.Pad,
+             exp.PercentileDisc,
+@@ -300,13 +301,14 @@ def _annotate_array(self: TypeAnnotator, expression: exp.Array) -> exp.Array:
+         for expr_type in {
+             exp.CodePointsToString,
+             exp.Format,
++            exp.Host,
+             exp.JSONExtractScalar,
+             exp.JSONType,
+             exp.LaxString,
+             exp.LowerHex,
+             exp.MD5,
+-            exp.NetHost,
+             exp.Normalize,
++            exp.RegDomain,
+             exp.SafeConvertBytesToString,
+             exp.Soundex,
+             exp.Uuid,
+diff --git a/tests/dialects/test_bigquery.py b/tests/dialects/test_bigquery.py
+index 7aaa68d841..fffd8350b4 100644
+--- a/tests/dialects/test_bigquery.py
++++ b/tests/dialects/test_bigquery.py
+@@ -77,7 +77,12 @@ def test_bigquery(self):
+         self.assertEqual(select_with_quoted_udf.selects[0].name, "p.d.UdF")
+ 
+         self.validate_identity("SELECT EXP(1)")
+-        self.validate_identity("NET.HOST('http://example.com')").assert_is(exp.NetHost)
++        self.validate_identity("NET.HOST('http://example.com')").assert_is(
++            exp.NetFunc
++        ).this.assert_is(exp.Host)
++        self.validate_identity("NET.REG_DOMAIN('http://example.com')").assert_is(
++            exp.NetFunc
++        ).this.assert_is(exp.RegDomain)
+         self.validate_identity("DATE_TRUNC(x, @foo)").unit.assert_is(exp.Parameter)
+         self.validate_identity("ARRAY_CONCAT_AGG(x ORDER BY ARRAY_LENGTH(x) LIMIT 2)")
+         self.validate_identity("ARRAY_CONCAT_AGG(x LIMIT 2)")
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index 7a14461b07..a3a022b19d 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -1343,6 +1343,10 @@ STRING;
+ NET.HOST('http://example.com');
+ STRING;
+ 
++# dialect: bigquery
++NET.REG_DOMAIN('http://example.com');
++STRING;
++
+ # dialect: bigquery
+ PERCENTILE_CONT(CAST(1 AS NUMERIC), CAST(1 AS NUMERIC)) OVER (ORDER BY 1);
+ NUMERIC;

@@ -1,0 +1,14 @@
+This PR annotate `OVERLAY(expr)` for **`Spark`**/**`DBX`**
+
+```sql
+SELECT typeof(overlay('Spark SQL' PLACING '_' FROM 6)) as one, typeof(overlay(encode('Spark SQL', 'utf-8') PLACING encode('ANSI ', 'utf-8') FROM 6)) as two;
+```
+
+```python
+|one|two|
+|---|---|
+|string|binary|
+```
+
+https://spark.apache.org/docs/latest/api/sql/index.html#overlay
+https://docs.databricks.com/aws/en/sql/language-manual/functions/overlay

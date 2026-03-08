@@ -1,0 +1,8 @@
+{
+  "pr_number": 7029,
+  "run_id": "run-2",
+  "predicted_files": [
+    "sqlglot/dialects/duckdb.py",
+    "tests/dialects/test_duckdb.py"
+  ]
+}

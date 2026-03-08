@@ -1,0 +1,56 @@
+diff --git a/sqlglot/dialects/duckdb.py b/sqlglot/dialects/duckdb.py
+index 82febc366f..46eb720b26 100644
+--- a/sqlglot/dialects/duckdb.py
++++ b/sqlglot/dialects/duckdb.py
+@@ -144,17 +144,20 @@ def _to_boolean_sql(self: DuckDB.Generator, expression: exp.ToBoolean) -> str:
+ 
+ # BigQuery -> DuckDB conversion for the DATE function
+ def _date_sql(self: DuckDB.Generator, expression: exp.Date) -> str:
+-    result = f"CAST({self.sql(expression, 'this')} AS DATE)"
++    this = expression.this
+     zone = self.sql(expression, "zone")
+ 
+     if zone:
+-        date_str = self.func("STRFTIME", result, "'%d/%m/%Y'")
+-        date_str = f"{date_str} || ' ' || {zone}"
+-
+-        # This will create a TIMESTAMP with time zone information
+-        result = self.func("STRPTIME", date_str, "'%d/%m/%Y %Z'")
+-
+-    return result
++        # BigQuery considers "this" at UTC, converts it to the specified
++        # time zone and then keeps only the DATE part
++        # To micmic that, we:
++        #   (1) Cast to TIMESTAMP to remove DuckDB's local tz
++        #   (2) Apply consecutive AtTimeZone calls for UTC -> zone conversion
++        this = exp.cast(this, exp.DataType.Type.TIMESTAMP)
++        at_utc = exp.AtTimeZone(this=this, zone=exp.Literal.string("UTC"))
++        this = exp.AtTimeZone(this=at_utc, zone=zone)
++
++    return self.sql(exp.cast(expression=this, to=exp.DataType.Type.DATE))
+ 
+ 
+ # BigQuery -> DuckDB conversion for the TIME_DIFF function
+diff --git a/tests/dialects/test_duckdb.py b/tests/dialects/test_duckdb.py
+index 28f5a18db4..38ba4bc6c8 100644
+--- a/tests/dialects/test_duckdb.py
++++ b/tests/dialects/test_duckdb.py
+@@ -1358,11 +1358,17 @@ def test_time(self):
+             read={"bigquery": "SELECT DATE(DATETIME '2016-12-25 23:59:59')"},
+         )
+         self.validate_all(
+-            "SELECT STRPTIME(STRFTIME(CAST(CAST('2016-12-25' AS TIMESTAMPTZ) AS DATE), '%d/%m/%Y') || ' ' || 'America/Los_Angeles', '%d/%m/%Y %Z')",
++            "SELECT CAST(CAST(CAST('2016-12-25' AS TIMESTAMPTZ) AS TIMESTAMP) AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles' AS DATE)",
+             read={
+                 "bigquery": "SELECT DATE(TIMESTAMP '2016-12-25', 'America/Los_Angeles')",
+             },
+         )
++        self.validate_all(
++            "SELECT CAST(CAST('2024-01-15 23:30:00' AS TIMESTAMP) AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin' AS DATE)",
++            read={
++                "bigquery": "SELECT DATE('2024-01-15 23:30:00', 'Europe/Berlin')",
++            },
++        )
+         self.validate_all(
+             "SELECT CAST(CAST(STRPTIME('05/06/2020', '%m/%d/%Y') AS DATE) AS DATE)",
+             read={"bigquery": "SELECT DATE(PARSE_DATE('%m/%d/%Y', '05/06/2020'))"},

@@ -1,0 +1,12 @@
+{
+  "pr_number": 6777,
+  "run_id": "run-3",
+  "predicted_files": [
+    "sqlglot/expressions.py",
+    "sqlglot/dialects/bigquery.py",
+    "sqlglot/optimizer/annotate_types.py",
+    "sqlglot/typing/bigquery.py",
+    "tests/dialects/test_bigquery.py",
+    "tests/fixtures/optimizer/annotate_types.sql"
+  ]
+}

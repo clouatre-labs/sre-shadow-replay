@@ -1,0 +1,40 @@
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 053b0f1a75..9a470455fb 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -5589,7 +5589,7 @@ class ArrayFilter(Func):
+ 
+ 
+ class ArrayFirst(Func):
+-    pass
++    arg_types = {"this": True, "expression": False}
+ 
+ 
+ class ArrayLast(Func):
+diff --git a/tests/dialects/test_trino.py b/tests/dialects/test_trino.py
+index b9c1c35f6d..ee6b5996c4 100644
+--- a/tests/dialects/test_trino.py
++++ b/tests/dialects/test_trino.py
+@@ -161,3 +161,7 @@ def test_json_value(self):
+             self.validate_identity(
+                 f"""SELECT JSON_VALUE({json_doc}, 'lax $.price' RETURNING DECIMAL(4, 2) {on_option} ON EMPTY {on_option} ON ERROR) AS price"""
+             )
++
++    def test_array_first(self):
++        self.validate_identity("SELECT ARRAY_FIRST(ARRAY['a', 'b']) FROM tbl")
++        self.validate_identity("SELECT ARRAY_FIRST(ARRAY['a', 'b'], x -> x = 'b') FROM tbl")
+diff --git a/tests/fixtures/optimizer/annotate_functions.sql b/tests/fixtures/optimizer/annotate_functions.sql
+index 43e19b5da5..75299d6bb6 100644
+--- a/tests/fixtures/optimizer/annotate_functions.sql
++++ b/tests/fixtures/optimizer/annotate_functions.sql
+@@ -6301,4 +6301,8 @@ BIGINT;
+ 
+ # dialect: presto, trino
+ WIDTH_BUCKET(tbl.double_col, tbl.array_col);
+-BIGINT;
+\ No newline at end of file
++BIGINT;
++
++# dialect: trino
++ARRAY_FIRST(ARRAY['a', 'b'], x -> x = 'b');
++VARCHAR;
