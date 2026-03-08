@@ -2,11 +2,10 @@
 
 ## Research Question
 
-Given a GitHub issue description and the codebase at the PR's base commit, can a Goose agent reliably identify and modify the same files a human engineer touched in the merged PR?
+Given a GitHub issue description and the repository file tree, can a language model predict which files a human engineer would modify?
 
-This is a **file navigation accuracy** study. We do not evaluate whether the agent's code changes are semantically correct, whether tests pass, or whether the implementation matches the human's approach. The sole question is: did the agent operate on the right files?
+Accurate file prediction is a prerequisite for AI-assisted code review triage, automated test selection, and agentic coding systems that must decide where to read and write. This study measures that capability in isolation, before any code generation, using set-overlap metrics (Jaccard, precision, recall) against human ground truth from 30 merged PRs.
 
----
 
 ## Target Repository Selection
 
@@ -17,12 +16,11 @@ sqlglot was selected because:
 1. **Issue-PR traceability**: Most PRs include a prose description in the PR body adequate to serve as issue body proxy.
 2. **Stable directory structure**: Dialect files follow a predictable pattern (`sqlglot/dialects/{dialect}.py`, `tests/dialects/test_{dialect}.py`), providing interpretable ground truth for navigation errors.
 3. **High PR volume**: 7,000+ merged PRs across fix/feat/refactor types with variable file counts.
-4. **No side effects**: sqlglot has no external service dependencies; agent can run without credentials.
+4. **No side effects**: sqlglot has no external service dependencies; the experiment can run without credentials beyond GitHub and AWS.
 5. **Open license**: MIT, permitting experimental use without restriction.
 
 Alternatives considered and rejected are documented in `.handoff/608-repo-candidates.json` in the parent repository.
 
----
 
 ## PR Curation Criteria
 
@@ -50,7 +48,7 @@ Alternatives considered and rejected are documented in `.handoff/608-repo-candid
 | Medium | 3-5 | `medium` |
 | Complex | 6-15 | `complex` |
 
-Each tier targets a minimum of 5 PRs in the final curated set. The 3-PR dry run spans tiers: simple (1 PR), medium (2 PRs).
+Each tier targets a minimum of 5 PRs in the final curated set.
 
 ### Change Type Mix
 
@@ -60,44 +58,40 @@ Target mix within the curated set:
 - `feat`: 40% (new dialect functions, syntax support)
 - `refactor`: 20% (structural reorganization)
 
----
 
 ## Sample Size
 
-This experiment targets 30 PRs with 3 runs each (90 total replays). This is a **pilot study** producing descriptive statistics (mean Jaccard per tier, scope creep rates, consistency variance). We do not claim statistical significance for tier-level comparisons; with 5-10 PRs per tier and 3 runs each, the study is underpowered for hypothesis testing. The purpose is to characterize agent file-navigation accuracy and identify failure patterns, not to detect small effect sizes between tiers.
+This experiment evaluated 30 curated PRs with 3 runs each, producing **90 predictions** at a total cost of **$1.10**. This is a **pilot study** producing descriptive statistics (mean Jaccard per tier, scope creep rates, consistency variance). We do not claim statistical significance for tier-level comparisons; with 10 PRs per tier and 3 runs each, the study is underpowered for hypothesis testing. The purpose is to characterize model file-prediction accuracy and identify failure patterns, not to detect small effect sizes between tiers.
 
-The sample size is driven by resource constraints: at ~$0.15 per replay (Claude Sonnet 4.6 on Bedrock), 90 runs cost approximately $13.50. A larger study (500+ instances, as in SWE-bench) would strengthen tier comparisons but exceeds the scope and budget of this companion experiment.
+The sample size is driven by resource constraints. The original estimate of ~$0.15 per run (Claude Sonnet 4.6 on Bedrock) was conservative; actual total cost for 90 predictions was $1.10. A larger study (500+ instances, as in SWE-bench) would strengthen tier comparisons but exceeds the scope and budget of this pilot.
 
----
 
 ## Agent Configuration
 
-### Goose Replay Agent
+### Executed Experiment: Direct-API File Prediction (predict.py)
 
-The Goose replay agent runs via Goose in headless (non-interactive) mode with the following configuration, pinned in `recipe/goose-headless-replay.yaml`:
-
-- **Model**: Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`)
-- **Provider**: Amazon Bedrock (cross-region inference)
-- **Extensions**: `developer` only (file read/write, shell execution)
-- **Temperature**: 0.3 (reduced for determinism)
-- **System prompt**: instructs the agent to work only from the issue text and current codebase state
-
-The `developer` extension provides the agent with file read, file write, and shell execution capabilities. No `github`, `web`, or `search` extensions are loaded. This prevents the agent from accessing PR history, review comments, or linked issues via the GitHub API.
-
-### Direct-API File Prediction (predict.py)
-
-A second experimental condition runs Claude Sonnet 4.6 directly via the Bedrock `converse()` API without Goose tooling. This is the **file-prediction** experiment documented in `scripts/predict.py`.
+The experiment as executed uses Claude Sonnet 4.6 directly via the Bedrock `converse()` API without Goose tooling. This is the **file-prediction** approach implemented in `scripts/predict.py` and constitutes the primary methodology of this study.
 
 - **Model**: Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`, global cross-region inference profile)
 - **Provider**: Amazon Bedrock, `us-east-1`, `converse()` API
 - **System prompt**: instructs the model to output only a JSON object `{"predicted_files": [...]}` given an issue description and file tree
-- **Temperature**: 0.3 (identical to Goose replay for comparability)
+- **Temperature**: 0.3 (reduced for determinism)
 - **Context**: repository file tree at base commit (recursive) + scrubbed PR body
 - **No tool use**: the model receives all context in a single prompt; no shell or file-system access
 
-This condition tests whether a file-navigation oracle (direct API + full file tree) achieves higher recall than the Goose agent that must navigate the codebase using tools. The design isolates the navigation cost from the prediction cost.
+This design tests whether a language model, given an issue description and a full file tree as context, can predict which files a human engineer would modify. The model has no ability to read file contents, execute code, or navigate the codebase interactively.
 
----
+### Preliminary Design: Goose Replay Agent (Superseded)
+
+The original experimental design used Goose in headless (non-interactive) mode, configured via `recipe/goose-headless-replay.yaml`. In this design, the agent would check out the repository at the base commit and use shell and file-read tools to navigate the codebase before proposing changes.
+
+- **Model**: Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`)
+- **Provider**: Amazon Bedrock (cross-region inference)
+- **Extensions**: `developer` only (file read/write, shell execution)
+- **Temperature**: 0.3
+
+Three dry-run PRs (7200, 7209, 7210) were executed using this approach to validate the replay pipeline. The methodology was subsequently pivoted to the direct-API prediction approach for the full 30-PR experiment. The goose recipe and `replay.sh` script remain in the repository for reference; they were not used in the primary experimental runs.
+
 
 ## Configuration
 
@@ -114,80 +108,99 @@ Experiment parameters are defined in `params.json` at the repository root:
 }
 ```
 
-This file serves as the single source of truth for provider, model, pricing, and timeout configuration. All scripts (`replay.sh`, `score.py`, `aggregate.py`, `predict.py`) read from `params.json` at runtime. To reproduce this experiment with a different model or provider, edit `params.json` and rerun. Following the [DVC parameter file convention](https://dvc.org/doc/command-reference/params), which supports YAML, JSON, TOML, and Python formats; we use JSON for zero-dependency parsing with Python's standard library.
+This file serves as the single source of truth for provider, model, pricing, and timeout configuration. All scripts (`score.py`, `aggregate.py`, `predict.py`) read from `params.json` at runtime. To reproduce this experiment with a different model or provider, edit `params.json` and rerun. Following the [DVC parameter file convention](https://dvc.org/doc/command-reference/params), which supports YAML, JSON, TOML, and Python formats; we use JSON for zero-dependency parsing with Python's standard library.
 
-The recipe file (`recipe/goose-headless-replay.yaml`) duplicates the provider and model settings for use with `goose run --recipe`. Scripts read `params.json` directly rather than parsing the recipe YAML.
+`predict.py` reads the `model_id` field (Bedrock API model identifier) for the `converse()` call.
 
-`predict.py` reads the additional `model_id` field (Bedrock API model identifier) for the `converse()` call.
 
----
+## Prediction Procedure
 
-## Replay Procedure
-
-For each PR and each run:
+For each PR and each run (3 runs per PR, 90 total):
 
 1. **Fetch PR metadata** via `gh pr view {pr_number} --repo {repo} --json body,baseRefName,mergeCommit`. Record PR body, base ref, and merge commit SHA.
 
-2. **Identify base commit**. Use `git log --oneline {merge_commit}~1 -1` to get the commit immediately before the merge.
+2. **Identify base commit**. Use the merge commit parent to establish the codebase state immediately before the PR was merged.
 
-3. **Clone repository** to a temporary directory (fresh clone per PR, not per run, to save bandwidth). Check out base commit: `git checkout {base_commit}`.
+3. **Fetch file tree** at the base commit via the GitHub API (recursive tree endpoint). This produces a list of all file paths present in the repository at that point.
 
-4. **Prepare issue body**. Strip markdown image references and any lines containing file paths matching `sqlglot/` or `tests/` patterns (leakage check). If the stripped body is < 100 characters, mark PR as excluded and skip.
+4. **Scrub PR body**. Strip markdown image references and any lines containing file paths matching `sqlglot/` or `tests/` patterns (leakage prevention). If the stripped body is < 100 characters, mark the PR as excluded and skip.
+
+5. **Send prediction prompt** to Bedrock `converse()` API. The prompt contains:
+   - A system instruction to output only a JSON object `{"predicted_files": [...]}`
+   - The full recursive file tree as context
+   - The scrubbed PR body as the issue description
+
+6. **Parse response**. Extract `predicted_files` from the JSON response. If the response cannot be parsed, record `predicted_files: []` for that run.
+
+7. **Record Bedrock metadata**. Latency (milliseconds from request to response), input token count, and output token count are recorded from the Bedrock API response for each run.
+
+8. **Score**: compare `predicted_files` against the human ground truth (files changed in the merged PR) using `scripts/score.py`. Compute precision, recall, Jaccard, F1, and scope creep.
+
+9. **Write run output** to `predictions/{pr_number}/run-{n}/metrics.json`.
+
+
+## Original Replay Procedure (Preliminary Design, Superseded)
+
+The following procedure describes the goose-headless replay approach used for dry-run PRs 7200, 7209, and 7210. It is preserved for reference; the primary experiment used the Prediction Procedure above.
+
+For each dry-run PR and each run:
+
+1. **Fetch PR metadata** via `gh pr view {pr_number} --repo {repo} --json body,baseRefName,mergeCommit`.
+
+2. **Identify base commit**. Use `git log --oneline {merge_commit}~1 -1`.
+
+3. **Clone repository** to a temporary directory (fresh clone per PR). Check out base commit: `git checkout {base_commit}`.
+
+4. **Prepare issue body**. Strip markdown image references and file path references.
 
 5. **Run agent** via `goose run -t "{issue_body}"` in the checked-out directory. Capture exit code, stdout, and stderr. Set a 10-minute wall-clock timeout.
 
-6. **Capture agent diff**: `git diff > {output_dir}/agent.patch`. If the diff is empty (agent made no changes), record `agent_files: []` in metrics.
+6. **Capture agent diff**: `git diff > {output_dir}/agent.patch`.
 
 7. **Extract human diff**: `git diff {base_commit}..{merge_commit} > {output_dir}/human.patch`.
 
-8. **Score**: `python3 scripts/score.py --agent-diff agent.patch --human-diff human.patch --pr-number {pr} --run-id {run_id} --output metrics.json`.
+8. **Score**: `python3 scripts/score.py --agent-diff agent.patch --human-diff human.patch`.
 
 9. **Save session log**: copy Goose session JSONL from the Goose sessions database to `{output_dir}/session.jsonl`.
 
----
 
 ## Data Leakage Prevention
 
-The following measures ensure the agent cannot access information that would trivially reveal the answer:
+The following measures ensure the model cannot access information that would trivially reveal the answer:
 
-1. **No `github` extension**: the agent cannot call `gh pr view`, `gh pr diff`, or similar.
-2. **No `web` extension**: the agent cannot fetch the GitHub PR URL.
-3. **Future git history purge**: after checking out the base commit, `replay.sh` removes all forward-looking git state using the technique from [SWE-bench issue #465](https://github.com/SWE-bench/SWE-bench/issues/465) and [PR #471](https://github.com/SWE-bench/SWE-bench/pull/471). Specifically:
-   - Remote origin removed (`git remote remove origin`)
-   - All local branches deleted (only detached HEAD remains)
-   - Tags created after the base commit timestamp deleted (past tags preserved)
-   - Reflog expired (`git reflog expire --expire=now --all`)
-   - Dangling objects garbage collected (`git gc --prune=now --aggressive`)
-   This ensures `git log`, `git log --all`, `git show-ref`, `git reflog`, `git tag`, and `git branch -a` reveal nothing beyond the base commit. Past history and past tags remain available as legitimate context.
-4. **PR body scrubbing**: file path references matching `sqlglot/` or `tests/` are removed from the issue body before it is passed to the agent.
-5. **No PR number in prompt**: the agent receives only the issue body text, not the PR number or URL.
+1. **No git access**: `predict.py` does not check out the repository. The model receives only the file tree and the scrubbed PR body. It has no access to commit history, diff content, or file contents.
+
+2. **File tree only**: The file tree passed to the model lists path names only (no file sizes, no modification timestamps, no content). The model cannot infer changed files from metadata.
+
+3. **PR body scrubbing**: file path references matching `sqlglot/` or `tests/` are removed from the issue body before it is passed to the model.
+
+4. **No PR number in prompt**: the model receives only the issue body text and file tree, not the PR number or URL.
 
 ### Leakage Check Protocol
 
-Before scoring, verify the agent did not output lines referencing the merged PR number or merge commit SHA in its session log. A `grep` pass on `session.jsonl` for the merge commit prefix (first 8 chars) flags potential leakage. Results are recorded in the run metadata. This serves as a second-line detection mechanism in case the purge is incomplete.
+Because `predict.py` has no git access and does not pass the PR number or merge commit to the model, the primary leakage vectors present in the original goose-replay design (git history, reflog, dangling objects) are structurally absent. The PR body scrubbing step handles the remaining leakage risk.
 
----
 
 ## Metrics Definitions
 
-All metrics are computed at the **file path** level. A file is identified by its path relative to the repository root as it appears in the unified diff header.
+All metrics are computed at the **file path** level. A file is identified by its path relative to the repository root.
 
 Let:
-- `A` = set of file paths appearing in the agent diff
+- `P` = set of file paths predicted by the model
 - `H` = set of file paths appearing in the human (merged PR) diff
 
 ### File Precision
 
 ```
-Precision = |A intersect H| / |A|
+Precision = |P intersect H| / |P|
 ```
 
-Undefined (recorded as `null`) when `|A| = 0` (agent made no changes).
+Undefined (recorded as `null`) when `|P| = 0` (model predicted no files).
 
 ### File Recall
 
 ```
-Recall = |A intersect H| / |H|
+Recall = |P intersect H| / |H|
 ```
 
 Undefined (recorded as `null`) when `|H| = 0` (degenerate case; excluded from curation).
@@ -195,10 +208,10 @@ Undefined (recorded as `null`) when `|H| = 0` (degenerate case; excluded from cu
 ### Jaccard Similarity
 
 ```
-Jaccard = |A intersect H| / |A union H|
+Jaccard = |P intersect H| / |P union H|
 ```
 
-Equal to 1.0 only when `A = H` exactly. Undefined when both sets are empty.
+Equal to 1.0 only when `P = H` exactly. Undefined when both sets are empty.
 
 ### F1 Score
 
@@ -211,58 +224,55 @@ The harmonic mean of precision and recall. Unlike the arithmetic mean, the harmo
 ### Scope Creep
 
 ```
-Scope Creep = A - H  (set difference)
+Scope Creep = P - H  (set difference)
 ```
 
-Reported as a list of file paths. `scope_creep_count = |A - H|`.
+Reported as a list of file paths. `scope_creep_count = |P - H|`.
 
----
 
 ## Failure Classification
 
 Failures (runs where Jaccard < 0.5) are classified along four dimensions adapted from Rabanser et al.:
 
-1. **Consistency**: Does the agent produce different file sets across 3 runs of the same PR? Measured by cross-run Jaccard variance. High variance = low consistency.
+1. **Consistency**: Does the model produce different file sets across 3 runs of the same PR? Measured by cross-run Jaccard variance. High variance = low consistency.
 
-2. **Robustness**: Does the agent fail on PRs where the issue body is shorter or more ambiguous? Measured by correlation between `issue_body_chars` and `recall`.
+2. **Robustness**: Does the model fail on PRs where the issue body is shorter or more ambiguous? Measured by correlation between `issue_body_chars` and `recall`.
 
-3. **Predictability**: Can the complexity tier predict the agent's success rate? Measured by mean Jaccard per tier. Unpredictable = no monotonic relationship between complexity and accuracy.
+3. **Predictability**: Can the complexity tier predict the model's success rate? Measured by mean Jaccard per tier. Unpredictable = no monotonic relationship between complexity and accuracy.
 
-4. **Safety**: Does the agent modify files outside the target scope (e.g., configuration files, CI workflows)? Measured by `scope_creep` paths matching patterns like `.github/`, `pyproject.toml`, `setup.py`.
+4. **Safety**: Does the model predict files outside the target scope (e.g., configuration files, CI workflows)? Measured by `scope_creep` paths matching patterns like `.github/`, `pyproject.toml`, `setup.py`.
 
-Each PR-run pair receives a binary flag (0/1) on each dimension in `failure-classifications.csv`.
+Each PR receives a binary flag (0/1) on each dimension in `failure-classifications.csv`.
 
----
 
 ## Consistency Measurement
 
-Each PR in the curated set is replayed 3 times (`run-1`, `run-2`, `run-3`) with identical configuration. Temperature 0.3 introduces controlled stochasticity to measure whether results are stable.
+Each PR in the curated set is run 3 times (`run-1`, `run-2`, `run-3`) with identical configuration. Temperature 0.3 introduces controlled stochasticity to measure whether results are stable.
 
-Cross-run consistency per PR is reported as standard deviation of precision, recall, and Jaccard across the 3 runs. A PR is classified as **consistent** if `jaccard_std <= 0.1` across runs. This threshold is a pragmatic pilot value; the full distribution of `jaccard_std` will be reported, and the threshold revisited after observing the data.
+Cross-run consistency per PR is reported as standard deviation of precision, recall, and Jaccard across the 3 runs. A PR is classified as **consistent** if `jaccard_std <= 0.1` across runs.
 
----
+In practice, the experiment produced near-perfect determinism: 29 of 30 PRs had `jaccard_std = 0.0` across all three runs. Only PR 6961 showed any variance (`jaccard_std = 0.0177`). All 30 PRs are classified as consistent.
+
 
 ## Cost and Efficiency Tracking
 
-### Wall-Clock Timing
+### Latency
 
-Each agent run is bracketed with `date -u +"%Y-%m-%dT%H:%M:%SZ"` timestamps before and after the goose invocation. Start timestamp, end timestamp, and elapsed seconds are written to `timing.json` in the run output directory immediately after the agent exits.
+`predict.py` records wall-clock latency in milliseconds from the moment the Bedrock `converse()` request is sent to the moment the response is received. This is the Bedrock API round-trip time and excludes local preprocessing.
 
 ### Token Capture
 
-After each run, `replay.sh` queries the goose sessions database (`~/.local/share/goose/sessions/sessions.db`) for the most recently created session's token counts. The `input_tokens` and `output_tokens` columns are read and written to `timing.json`. These columns are frequently NULL in practice (a known limitation of goose's session tracking; see Known Limitations). Null values are preserved rather than omitted.
+Input and output token counts are returned directly in the Bedrock `converse()` API response (`usage.inputTokens`, `usage.outputTokens`). These values are always present and are written to `metrics.json` for each run.
 
 ### Cost Computation
 
-`scripts/score.py` reads `timing.json` when present and merges its fields into `metrics.json`. It computes `cost_usd` as:
+`scripts/score.py` computes `cost_usd` as:
 
 ```
 cost_usd = (input_tokens * 3.0 + output_tokens * 15.0) / 1_000_000
 ```
 
 Pricing basis: Claude Sonnet 4.6 on Amazon Bedrock at $3.00 per million input tokens and $15.00 per million output tokens (as of March 2026).
-
-If `timing.json` is absent or token counts are null, `cost_usd` is recorded as null.
 
 ### Cost-Efficiency Composite
 
@@ -272,38 +282,49 @@ If `timing.json` is absent or token counts are null, `cost_usd` is recorded as n
 cost_per_jaccard = cost_usd / jaccard
 ```
 
-Lower is better. This metric is undefined (empty) when `jaccard = 0` (division by zero) or when `cost_usd` is null. It normalizes API spend by accuracy, analogous to the `effective_cost_per_quality_point` metric from dotfiles#255 adapted for Jaccard rather than a rubric score.
+Lower is better. This metric is undefined (empty) when `jaccard = 0` (division by zero). It normalizes API spend by accuracy, analogous to the `effective_cost_per_quality_point` metric from dotfiles#255 adapted for Jaccard rather than a rubric score.
 
-`summary.csv` aggregates `mean_wall_clock_seconds`, `mean_cost_usd`, and `total_cost_usd` per complexity tier.
+`summary.csv` aggregates `mean_cost_usd` and `total_cost_usd` per complexity tier. Total cost for 90 predictions was $1.10.
 
----
+
+## Results Summary
+
+| Tier | n | Mean Precision | Mean Recall | Mean Jaccard | Mean F1 | Mean Scope Creep |
+|---|---|---|---|---|---|---|
+| Simple | 30 | 0.6452 | 0.8500 | 0.5952 | 0.7078 | 1.30 |
+| Medium | 30 | 0.5395 | 0.5850 | 0.4091 | 0.5522 | 2.17 |
+| Complex | 30 | 0.7689 | 0.6731 | 0.5778 | 0.7120 | 1.57 |
+| **Overall** | **90** | -- | -- | **0.5274** | -- | -- |
+
+All 30 PRs were classified as consistent (`jaccard_std <= 0.1`). Of those, 29 had `jaccard_std = 0.0` (perfectly deterministic across all 3 runs). 12 of 30 PRs had `mean_jaccard < 0.5` (classified as failures). Total API cost: $1.10.
+
 
 ## Known Limitations
 
-1. **Residual git leakage**: Future git history is purged after checkout (remote, branches, tags, reflog, dangling objects) following [SWE-bench's technique](https://github.com/SWE-bench/SWE-bench/issues/465). However, if `git gc` fails to collect all dangling objects, some future commit data may remain accessible via low-level git commands (e.g., `git cat-file`). The leakage check protocol provides a second-line detection mechanism.
+1. **PR body as issue proxy**: sqlglot does not consistently link PRs to GitHub issues. The PR body is used as the issue body proxy. PR bodies written by the same author whose changes we are measuring may contain implicit context (e.g., "I changed X to fix Y") that a separate issue author would not include.
 
-2. **PR body as issue proxy**: sqlglot does not consistently link PRs to GitHub issues. The PR body is used as the issue body proxy. PR bodies written by the same author whose changes we are measuring may contain implicit context (e.g., "I changed X to fix Y") that a separate issue author would not include.
+2. **Temperature floor**: Temperature 0.3 produces near-deterministic but not fully deterministic results. In practice, the experiment observed near-perfect determinism: 29 of 30 PRs had zero variance across three runs. The one exception (PR 6961, `jaccard_std = 0.0177`) demonstrates that some residual stochasticity remains.
 
-3. **Temperature floor**: Temperature 0.3 produces near-deterministic but not fully deterministic results. Three runs mitigate this.
+3. **Single repository**: Results may not generalize beyond sqlglot's directory structure and contribution style.
 
-4. **Token data availability**: The goose sessions database (`sessions.db`) token columns (`input_tokens`, `output_tokens`) are frequently NULL. This occurs when sessions complete but the provider does not return token usage in a format goose records. When token data is unavailable, `cost_usd` and `cost_per_jaccard` will be null for those runs.
+4. **File-level granularity only**: A perfect Jaccard score does not imply the model would make correct changes. A score of 0.0 does not imply the model was useless (it may have identified semantically related files that were not touched in this particular PR).
 
-5. **Single repository**: Results may not generalize beyond sqlglot's directory structure and contribution style.
+5. **Medium tier underperformance**: The medium tier (3-5 files) achieved lower mean Jaccard (0.4091) than both the simple tier (0.5952) and the complex tier (0.5778). This is counterintuitive; one hypothesis is that medium-complexity PRs in this curated sample involve cross-cutting changes that are harder to predict from an issue description alone, while complex PRs tend to follow more predictable structural patterns (e.g., adding a dialect requires touching both implementation and test files). This may reflect characteristics of the curated sample rather than a generalizable pattern.
 
-6. **File-level granularity only**: A perfect Jaccard score does not imply the agent made correct changes. A score of 0.0 does not imply the agent was useless (it may have made correct changes to the wrong file paths due to refactoring).
+6. **No tool use**: The prediction condition provides the full file tree as context but no ability to read file contents. An agent with tool use -- the ability to inspect individual files, run grep, or traverse the codebase interactively -- might achieve higher recall at the cost of higher latency and API spend. This experiment establishes a baseline for the file-tree-only oracle; a follow-on study could compare against an interactive agent.
 
----
 
 ## Software Versions
 
-| Component | Version |
-|---|---|
-| Goose | 1.27.2 |
-| Agent model | Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`) |
-| Provider | Amazon Bedrock |
-| Python | 3.14.3 |
-| GitHub CLI | 2.87.3 |
-| Target repository | tobymao/sqlglot (HEAD at time of curation) |
+| Component | Version | Notes |
+|---|---|---|
+| Python | 3.14.3 | Primary execution environment |
+| predict.py | -- | Primary runner for 90-prediction experiment |
+| Agent model | Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`) | |
+| Provider | Amazon Bedrock | `us-east-1`, `converse()` API |
+| Goose | 1.27.2 | Used for 3 dry-run PRs (7200, 7209, 7210) only |
+| GitHub CLI | 2.87.3 | |
+| Target repository | tobymao/sqlglot | HEAD at time of curation |
 
 ## Pricing Reference
 
