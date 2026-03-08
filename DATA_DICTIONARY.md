@@ -249,3 +249,97 @@ One row per run (not per PR). Produced by `scripts/aggregate.py`. Reports per-ru
 - `cost_per_jaccard` is undefined (empty) when `jaccard = 0` to avoid division by zero. This includes runs where the agent produced no diff.
 - `effective_cost` extends `cost_per_jaccard` by incorporating reliability (completion rate) in the denominator, following the `effective_cost_per_qp` pattern from scout-bench. Lower is better.
 - Pricing basis: Claude Sonnet 4.6 on Amazon Bedrock at $3.00/M input tokens, $15.00/M output tokens (as of March 2026).
+
+---
+
+## `experiments/predictions/{pr_number}/cache/file_tree.json`
+
+Cached recursive file tree fetched from GitHub at the PR's base commit.
+
+| Field | Type | Description |
+|---|---|---|
+| (array root) | array of strings | Relative file paths of all blobs in the repository at `base_commit` |
+
+### Notes
+
+- Fetched once per PR via `gh api repos/{repo}/git/trees/{base_commit}?recursive=1`.
+- Re-used across all runs for the same PR. Delete to force re-fetch.
+
+---
+
+## `experiments/predictions/{pr_number}/cache/issue_body.txt`
+
+Scrubbed PR body text used as the issue description in the prediction prompt.
+
+- Plain text (UTF-8).
+- Lines matching `LEAKAGE_REGEX` (`sqlglot/|tests/|\.py[\s\`"]`) have been removed before writing.
+- Identical scrubbing rule to `replay.sh`.
+
+---
+
+## `experiments/predictions/{pr_number}/cache/human.patch`
+
+Human ground-truth unified diff for this PR (identical format to `experiments/replays/{pr}/{run}/human.patch`).
+
+- Fetched once per PR via `gh api repos/{repo}/compare/{base_commit}...{merge_commit}` with `Accept: application/vnd.github.diff`.
+
+---
+
+## `experiments/predictions/{pr_number}/{run_id}/prediction.json`
+
+Model prediction output for one run.
+
+| Field | Type | Description |
+|---|---|---|
+| `pr_number` | integer | PR number |
+| `run_id` | string | Run identifier (e.g., `run-1`) |
+| `predicted_files` | array of strings | File paths predicted to need changes |
+
+---
+
+## `experiments/predictions/{pr_number}/{run_id}/timing.json`
+
+Timing and token data for one prediction call.
+
+| Field | Type | Description |
+|---|---|---|
+| `start_ts` | string (ISO 8601) | UTC timestamp when the Bedrock call started |
+| `end_ts` | string (ISO 8601) | UTC timestamp when the Bedrock call returned |
+| `wall_clock_seconds` | integer | Elapsed wall-clock seconds (rounded) |
+| `latency_ms` | integer | Bedrock-reported latency in milliseconds (`metrics.latencyMs`) |
+| `input_tokens` | integer | Input tokens billed (`usage.inputTokens`) |
+| `output_tokens` | integer | Output tokens billed (`usage.outputTokens`) |
+| `cost_usd` | float | Computed API cost: `(input_tokens * 3.0 + output_tokens * 15.0) / 1_000_000` |
+| `provider` | string | Provider identifier (e.g., `aws_bedrock`) |
+| `model` | string | Model identifier used (e.g., `global.anthropic.claude-sonnet-4-6`) |
+| `model_id` | string | Bedrock API model identifier (same as `model`) |
+
+---
+
+## `experiments/predictions/{pr_number}/{run_id}/metrics.json`
+
+Scored metrics for one prediction run. Same schema as `experiments/replays/{pr}/{run}/metrics.json` with additional timing fields.
+
+| Field | Type | Description |
+|---|---|---|
+| `pr_number` | integer | PR number |
+| `run_id` | string | Run identifier |
+| `agent_files` | array of strings | Files predicted (sorted) |
+| `human_files` | array of strings | Files changed in ground truth (sorted) |
+| `intersection` | array of strings | Files in both sets |
+| `precision` | float or null | File precision; null when prediction is empty |
+| `recall` | float or null | File recall |
+| `jaccard` | float or null | Jaccard similarity |
+| `scope_creep` | array of strings | Files predicted but not in ground truth |
+| `scope_creep_count` | integer | Count of scope creep files |
+| `agent_empty` | boolean | True when no files were predicted |
+| `leakage_flag` | boolean | Always false (leakage scrub applied at pre-process time) |
+| `start_ts` | string (ISO 8601) | Bedrock call start timestamp |
+| `end_ts` | string (ISO 8601) | Bedrock call end timestamp |
+| `wall_clock_seconds` | integer | Elapsed wall-clock seconds |
+| `latency_ms` | integer | Bedrock-reported latency in milliseconds |
+| `input_tokens` | integer | Input tokens billed |
+| `output_tokens` | integer | Output tokens billed |
+| `cost_usd` | float | Computed API cost |
+| `provider` | string | Provider identifier |
+| `model` | string | Model identifier |
