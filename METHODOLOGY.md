@@ -290,7 +290,7 @@ Lower is better. This metric is undefined (empty) when `jaccard = 0` (division b
 
 | Component | Version |
 |---|---|
-| Goose | 1.27.0 |
+| Goose | 1.27.2 |
 | Agent model | Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`) |
 | Provider | Amazon Bedrock |
 | Python | 3.14.3 |
