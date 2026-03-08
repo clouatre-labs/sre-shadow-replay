@@ -309,7 +309,7 @@ Timing and token data for one prediction call.
 | `latency_ms` | integer | Bedrock-reported latency in milliseconds (`metrics.latencyMs`) |
 | `input_tokens` | integer | Input tokens billed (`usage.inputTokens`) |
 | `output_tokens` | integer | Output tokens billed (`usage.outputTokens`) |
-| `cost_usd` | float | Computed API cost (`input_tokens * 3.0 + output_tokens * 15.0) / 1_000_000`) |
+| `cost_usd` | float | Computed API cost: `(input_tokens * 3.0 + output_tokens * 15.0) / 1_000_000` |
 | `provider` | string | Provider identifier (e.g., `aws_bedrock`) |
 | `model` | string | Model identifier used (e.g., `global.anthropic.claude-sonnet-4-6`) |
 | `model_id` | string | Bedrock API model identifier (same as `model`) |

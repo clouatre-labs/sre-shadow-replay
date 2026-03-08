@@ -388,7 +388,6 @@ def run_all(run_id, parallelism, cache_dir, pr_filter=None, dry_run=False):
     print(f"Loaded {len(rows)} PR(s). Pre-fetching cache...")
 
     # Pre-fetch all sequentially (avoids GH rate limit burst)
-    pr_cache_map = {}
     for row in rows:
         pr_number = int(row["pr_number"])
         pr_cache = os.path.join(cache_dir, str(pr_number), "cache")
@@ -399,7 +398,6 @@ def run_all(run_id, parallelism, cache_dir, pr_filter=None, dry_run=False):
             row["base_commit"], row["merge_commit"],
             os.path.join(pr_cache, "human.patch")
         )
-        pr_cache_map[pr_number] = pr_cache
         print(f"  cached PR {pr_number}")
 
     print(f"Pre-fetch complete. Starting predictions (parallelism={parallelism})...")
@@ -506,13 +504,23 @@ def run_tests():
     check("score_empty_prediction recall", m_empty["recall"], 0.0)
     check("score_empty_prediction agent_empty", m_empty["agent_empty"], True)
 
+    # test_score_scope_creep
+    m_creep = compute_metrics({"sqlglot/foo.py", "sqlglot/bar.py"}, human_files, 9999, "run-test")
+    check("score_scope_creep scope_creep", m_creep["scope_creep"], ["sqlglot/bar.py"])
+    check("score_scope_creep precision", m_creep["precision"], 0.5)
+
+    # test_score_partial_match
+    m_partial = compute_metrics({"sqlglot/foo.py"}, {"sqlglot/foo.py", "sqlglot/bar.py"}, 9999, "run-test")
+    check("score_partial_match recall", m_partial["recall"], 0.5)
+    check("score_partial_match scope_creep", m_partial["scope_creep_count"], 0)
+
     if failures:
         for f in failures:
             print(f, file=sys.stderr)
         print(f"FAILED: {len(failures)} test(s)", file=sys.stderr)
         sys.exit(1)
     else:
-        print("OK: 16 checks passed")
+        print("OK: 22 checks passed")
         sys.exit(0)
 
 
