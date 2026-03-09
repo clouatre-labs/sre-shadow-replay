@@ -223,10 +223,11 @@ This research received no external funding. The author has no financial or non-f
 
 ```bibtex
 @misc{clouatre2026shadowreplay,
-  title   = {SRE Shadow-Mode File Prediction: Can a Language Model Predict Which Files a PR Touches?},
+  title   = {SRE for AI Agents: Error Budgets, Trust Ladders, and 90 Trials},
   author  = {Clouatre, Hugues},
   year    = {2026},
-  url     = {https://github.com/clouatre-labs/sre-shadow-replay}
+  url     = {https://clouatre.ca/posts/sre-ai-agents-production/},
+  note    = {Supplementary materials: https://github.com/clouatre-labs/sre-shadow-replay}
 }
 ```
 
