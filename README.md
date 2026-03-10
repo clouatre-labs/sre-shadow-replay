@@ -223,7 +223,7 @@ This research received no external funding. The author has no financial or non-f
 
 ```bibtex
 @misc{clouatre2026shadowreplay,
-  title   = {SRE for AI Agents: Error Budgets, Trust Ladders, and 90 Trials},
+  title   = {SRE for AI Agents: Error Budgets, Trust, and 90 Trials},
   author  = {Clouatre, Hugues},
   year    = {2026},
   url     = {https://clouatre.ca/posts/sre-ai-agents-production/},
