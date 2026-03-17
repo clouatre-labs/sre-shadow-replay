@@ -6,19 +6,19 @@
 [![PRs Predicted](https://img.shields.io/badge/PRs%20predicted-90-blue)](experiments/)
 [![Status](https://img.shields.io/badge/status-complete-brightgreen)](experiments/)
 
-**File-level prediction accuracy averages 0.53 Jaccard across 90 predictions. Complex PRs outperform medium. Perfect run-to-run consistency at temperature 0.3.**
+Automated file-level issue localization (identifying which source files must be modified to resolve a reported issue) is a prerequisite for agentic code repair systems and AI-assisted review triage, yet the performance limits of static-context inference remain underexplored. We conduct a controlled empirical study in which Claude Sonnet 4.6, given only an issue description and the repository file tree at the base commit (no retrieval augmentation, no tool access), predicts the modified files for 30 merged pull requests drawn from the tobymao/sqlglot repository, with each instance repeated three times (90 total predictions). Across three complexity tiers (simple: 1-2 files, medium: 3-5 files, complex: 6-15 files) the model achieves a mean Jaccard similarity of 0.527 (simple: 0.595, medium: 0.409, complex: 0.578) at a total inference cost of $1.10. Counter-intuitively, complex-tier instances outperform medium-tier instances (0.578 vs. 0.409), suggesting that higher-specificity issues provide stronger localization signal despite larger ground-truth sets; 29 of 30 instances show zero prediction variance across runs, confirming that determinism at temperature 0.3 is achievable in this setting. A non-trivial failure rate (12/30 instances with Jaccard < 0.5) and the absence of any retrieval mechanism bound the practical ceiling, motivating future work on retrieval-augmented and graph-guided localization pipelines.
 
 </div>
 
 ## The Question
 
-Given a GitHub issue description and the repository file tree, can a language model predict which files a human engineer would modify?
+To what extent can a large language model perform file-level issue localization using static context alone (specifically, an issue description and a repository file tree without retrieval augmentation or tool access), and how does localization accuracy vary across issue complexity tiers?
 
 Accurate file prediction is a prerequisite for AI-assisted code review triage, automated test selection, and agentic coding systems that must decide where to read and write. This experiment measures that capability in isolation, before any code generation, using set-overlap metrics (Jaccard, precision, recall) against human ground truth from 30 merged PRs.
 
 ## Methodology Summary
 
-Inspired by [SWE-bench](https://www.swebench.com/) but scoped to file-level prediction rather than test execution. We present merged pull requests from [tobymao/sqlglot](https://github.com/tobymao/sqlglot) to Claude via the Amazon Bedrock Converse API (`predict.py`). The model sees the issue body and the repository file tree at the PR's base commit. No tool access, no shell, no retrieval -- only static context.
+Inspired by [SWE-bench](https://www.swebench.com/) but scoped to file-level prediction rather than test execution. We present merged pull requests from [tobymao/sqlglot](https://github.com/tobymao/sqlglot) to Claude via the Amazon Bedrock Converse API (`predict.py`). The model sees the issue body and the repository file tree at the PR's base commit. No tool access, no shell, no retrieval: only static context.
 
 Three complexity tiers:
 
@@ -141,17 +141,17 @@ sre-shadow-replay/
 
 Per-PR artifacts live under `experiments/predictions/{pr_number}/`. Aggregate roll-ups live under `experiments/aggregate/`. Full schemas are in [DATA_DICTIONARY.md](DATA_DICTIONARY.md).
 
-- **`curated-prs.csv`** -- The 30 selected PRs with complexity tier, change type, and commit SHAs.
-- **`cache/file_tree.json`** -- Repository file tree at base commit; the structural context fed to the model.
-- **`cache/issue_body.txt`** -- Scrubbed PR body used as the model prompt.
-- **`cache/human.patch`** -- Merged PR diff used as ground truth for scoring.
-- **`run-{N}/prediction.json`** -- File paths predicted by the model for this run.
-- **`run-{N}/metrics.json`** -- Precision, recall, Jaccard, F1, and scope creep for this run.
-- **`run-{N}/timing.json`** -- Bedrock API latency and token counts.
-- **`aggregate/summary.csv`** -- Mean metrics by complexity tier.
-- **`aggregate/consistency.csv`** -- Cross-run variance per PR.
-- **`aggregate/failure-classifications.csv`** -- Rabanser failure dimensions per PR.
-- **`aggregate/efficiency.csv`** -- Cost and latency per run.
+- **`curated-prs.csv`** The 30 selected PRs with complexity tier, change type, and commit SHAs.
+- **`cache/file_tree.json`** Repository file tree at base commit; the structural context fed to the model.
+- **`cache/issue_body.txt`** Scrubbed PR body used as the model prompt.
+- **`cache/human.patch`** Merged PR diff used as ground truth for scoring.
+- **`run-{N}/prediction.json`** File paths predicted by the model for this run.
+- **`run-{N}/metrics.json`** Precision, recall, Jaccard, F1, and scope creep for this run.
+- **`run-{N}/timing.json`** Bedrock API latency and token counts.
+- **`aggregate/summary.csv`** Mean metrics by complexity tier.
+- **`aggregate/consistency.csv`** Cross-run variance per PR.
+- **`aggregate/failure-classifications.csv`** Rabanser failure dimensions per PR.
+- **`aggregate/efficiency.csv`** Cost and latency per run.
 
 
 ## Inspecting the Data
