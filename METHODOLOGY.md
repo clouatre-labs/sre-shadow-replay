@@ -19,7 +19,7 @@ sqlglot was selected because:
 4. **No side effects**: sqlglot has no external service dependencies; the experiment can run without credentials beyond GitHub and AWS.
 5. **Open license**: MIT, permitting experimental use without restriction.
 
-Alternatives considered and rejected are documented in `.handoff/608-repo-candidates.json` in the parent repository.
+Alternatives considered and rejected were evaluated during curation design and are not included in this dataset.
 
 
 ## PR Curation Criteria
@@ -282,7 +282,7 @@ Pricing basis: Claude Sonnet 4.6 on Amazon Bedrock at $3.00 per million input to
 cost_per_jaccard = cost_usd / jaccard
 ```
 
-Lower is better. This metric is undefined (empty) when `jaccard = 0` (division by zero). It normalizes API spend by accuracy, analogous to the `effective_cost_per_quality_point` metric from dotfiles#255 adapted for Jaccard rather than a rubric score.
+Lower is better. This metric is undefined (empty) when `jaccard = 0` (division by zero). It normalizes API spend by accuracy, analogous to an efficiency metric that normalises quality score by total cost adapted for Jaccard rather than a rubric score.
 
 `summary.csv` aggregates `mean_cost_usd` and `total_cost_usd` per complexity tier. Total cost for 90 predictions was $1.10.
 
