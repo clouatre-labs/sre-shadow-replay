@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this dataset, please cite the dataset itself."
+type: dataset
+title: "SRE Shadow-Mode File Prediction"
+authors:
+  - family-names: Clouatre
+    given-names: Hugues
+    orcid: "https://orcid.org/0009-0002-4291-1999"
+repository-code: "https://github.com/clouatre-labs/sre-shadow-replay"
+license: Apache-2.0
+date-released: "2026-03-08"
+version: "1.0.0"
+abstract: >
+  Automated file-level issue localization (identifying which source files must be modified to resolve a reported issue) is a prerequisite for agentic code repair systems and AI-assisted review triage, yet the performance limits of static-context inference remain underexplored. We conduct a controlled empirical study in which Claude Sonnet 4.6, given only an issue description and the repository file tree at the base commit (no retrieval augmentation, no tool access), predicts the modified files for 30 merged pull requests drawn from the tobymao/sqlglot repository, with each instance repeated three times (90 total predictions). Across three complexity tiers (simple: 1-2 files, medium: 3-5 files, complex: 6-15 files) the model achieves a mean Jaccard similarity of 0.527 (simple: 0.595, medium: 0.409, complex: 0.578) at a total inference cost of $1.10. Counter-intuitively, complex-tier instances outperform medium-tier instances (0.578 vs. 0.409), suggesting that higher-specificity issues provide stronger localization signal despite larger ground-truth sets; 29 of 30 instances show zero prediction variance across runs, confirming that determinism at temperature 0.3 is achievable in this setting. A non-trivial failure rate (12/30 instances with Jaccard < 0.5) and the absence of any retrieval mechanism bound the practical ceiling, motivating future work on retrieval-augmented and graph-guided localization pipelines.
+keywords:
+  - file-level-localization
+  - issue-prediction
+  - llm-evaluation
+  - static-context-inference
+  - agentic-code-repair
+  - ai-assisted-review
+  - jaccard-similarity
+  - empirical-study
+  - reproducibility
+  - sqlglot
+  - complexity-tiers
+  - shadow-mode
+  - sre
+  - pre-registered
