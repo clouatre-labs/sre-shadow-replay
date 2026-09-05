@@ -1,0 +1,31 @@
+# aptu GitHub App configuration
+# Schema: https://github.com/clouatre-labs/aptu/blob/main/docs/GITHUB_ACTION.md
+version: 1
+
+# Automatic issue triage on new issues
+triage:
+  enabled: true
+
+# Automatic PR review on open/synchronize/reopened
+# Requires an ai block (see below)
+review:
+  enabled: true
+  # Path to custom review instructions in this repo
+  instructions-file: .github/instructions/pr-review.md
+  # Skip review dispatch if PR already has labels
+  skip-labeled: false
+  # Glob patterns for files that trigger review (include + !exclude)
+  paths:
+    - "**/*.md"
+
+# AI provider credentials for triage and review
+# All three fields are required. The secret name must match ^[A-Z0-9_]+$
+ai:
+  provider: openrouter
+  model: google/gemma-4-26b-a4b-it
+
+# Security scanning on pull requests (local pattern matching, no AI required)
+scan:
+  enabled: true
+  # Severities that fail the check (critical, high, medium, low)
+  fail-on: critical,high
