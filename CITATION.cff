@@ -7,6 +7,11 @@ authors:
     given-names: Hugues
     orcid: "https://orcid.org/0009-0002-4291-1999"
 repository-code: "https://github.com/clouatre-labs/sre-shadow-replay"
+url: https://clouatre.ca/posts/sre-ai-agents-production/
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.20645992
+    description: Concept DOI (all versions)
 license: Apache-2.0
 date-released: "2026-03-08"
 version: "1.0.0"
