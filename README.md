@@ -221,15 +221,7 @@ This research received no external funding. The author has no financial or non-f
 
 ## Citation
 
-```bibtex
-@misc{clouatre2026shadowreplay,
-  title   = {SRE for AI Agents: Error Budgets, Trust, and 90 Trials},
-  author  = {Clouatre, Hugues},
-  year    = {2026},
-  url     = {https://clouatre.ca/posts/sre-ai-agents-production/},
-  note    = {Supplementary materials: https://github.com/clouatre-labs/sre-shadow-replay}
-}
-```
+If you cite this work, use [CITATION.cff](CITATION.cff): it is the single source of truth for citation metadata (title, authors, version, DOI, blog write-up) and GitHub renders it under "Cite this repository".
 
 
 ## License
